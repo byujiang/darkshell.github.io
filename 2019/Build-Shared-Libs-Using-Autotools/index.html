@@ -1,0 +1,937 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>使用 Autotool 工具链编译动态链接库 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":" 最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。\n\n\n\n 从静态编译到动态编译 \n 基本上，对于一个目录结构如下的简单的包，\n- include:\n    - a.h\n    - b.h\n    - Makefile.am\n    - ...\n- lib:\n    - a.cpp\n    - b.cpp\n    - Makefile.am\n    - ...\n- configure.ac\n- ...\n\n 需要修改的只有两个文件 - configure.ac 和 lib/Makefile.am.\nConfigure.ac\n 一般地， configure.ac 文件的开头会类似如下面所示：\ndnl Process this file with autoconf to produce a configure script.\nAC_INIT(xxx, xxx, [xxxx])\nAC_CONFIG_AUX_DIR(config)\nAC_CONFIG_SRCDIR([lib/xxx.c])\nAC_CONFIG_SRCDIR([examples/xxx.c])\nAC_CONFIG_HEADER([include/xxx.h])\nAM_INIT_AUTOMAKE([subdir-objects])\n\n 需要做的是，在这后面加上 \nAC_ENABLE_SHARED\nAC_DISABLE_STATIC\nLT_INIT\n\n 这里只编译动态链接的版本，所以加上了 AC_DISABLE_STATIC，这也是为方便之后修改 lib/Makefile.am 文件。\nlib/Makefile.am\nlib/Makefile.am 文件中一般会有如下的内容 \nlib_LIBRARIES = libxxx.a\nlibxxx_a_CFLAGS= xxx\nlibxxx_a_CPPFLAGS= xxx\nlibxxx_a_CXXFLAGS= xxx\nlibxxx_a_LDFLAGS= xxx\nlibxxx_a_SOURCES= xxx\n\n 如果只编译动态链接的版本，只需要替换成如下的内容：\nlib_LTLIBRARIES = libxxx.la\nlibxxx_la_CFLAGS= xxx\nlibxxx_la_CPPFLAGS= xxx\nlibxxx_la_CXXFLAGS= xxx\nlibxxx_la_LDFLAGS= xxx\nlibxxx_la_SOURCES= xxx\n\n 如果要编译静态版本，最好用没修改过的版本进行编译，或者将上面的内容加上 Makefile.am 中。\n 注 ： 若有多个 libxxx.a, 则都需要进行修改。\ntests 或 examples\n 有的库会带有测试程序，放在 tests 或 examples 里面。这样修改了前面的文件后，这里面的 Makefile.am 也需要进行修改。\n\n 相应的库文件 libxxx.a 改成 libxxx.so\n 链接的库路径从 -L../lib/ 改成 -L../lib/.libs，因为 生成的库文件存放在 lib/.libs 目录下。\n\n 重新生成 configure\n 在做完上面的工作后，需要做的是重新生成 configure 文件:\nautoreconf -i\n\n 之后编译时加上 --enable-shared 选项即可。\n 转换过程中的问题 \n\n 若 configure.ac 中有 AC_CHECK_TOOL(AR, ar, [ar]) 语句，要将添加的内容放在这句后面，或去掉这一句。\n 若有其他依赖库，比如放在 other_libs 下面，这些也是需要做相应修改的。\nqdpxx 需要从 master 分支转到 devel 分支。\n 若有可执行程序， 比如在 mainprog 目录下， mainprog 下的 Makefile.am 也需要进行相应修改。\n 有的库会在 configure 时，没有正常获取 include 目录，需要手动加上, 在 lib/Makefile 中的 DEFAULT_INCLUDES 选项。\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2019-03-14T13:10:43+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2019-03-14T13:10:43+08:00","description":"最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。","headline":"使用 Autotool 工具链编译动态链接库","image":["gnu.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2019/Build-Shared-Libs-Using-Autotools/","keywords":"Linux, Automake, Chroma, QUDA","thumbnailUrl":"gnu.png"}</script>
+    <meta name="description" content="最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。">
+<meta name="keywords" content="Linux,Automake,Chroma,QUDA">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="使用 Autotool 工具链编译动态链接库">
+<meta property="og:url" content="https://amito.me/2019/Build-Shared-Libs-Using-Autotools/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.714Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 Autotool 工具链编译动态链接库">
+<meta name="twitter:description" content="最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2019/Build-Shared-Libs-Using-Autotools/gnu.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2019/Build-Shared-Libs-Using-Autotools/gnu.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            使用 Autotool 工具链编译动态链接库
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2019-03-14T13:10:43+08:00">
+	
+		    3月 14, 2019
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p> 最近需要将几个静态编译的包改成动态编译的库，幸运的是，它们都是用 autoconf 那一套工具生成 configure 文件，转换起来很方便。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#从静态编译到动态编译"><span class="toc-text"> 从静态编译到动态编译 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Configure-ac"><span class="toc-text">Configure.ac</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#lib-Makefile-am"><span class="toc-text">lib/Makefile.am</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#tests- 或 -examples"><span class="toc-text">tests 或 examples</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#重新生成 -configure"><span class="toc-text"> 重新生成 configure</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#转换过程中的问题"><span class="toc-text"> 转换过程中的问题 </span></a></li></ol>
+<h2 id="从静态编译到动态编译"> 从静态编译到动态编译 </h2>
+<p> 基本上，对于一个目录结构如下的简单的包，</p>
+<pre><code>- include:
+    - a.h
+    - b.h
+    - Makefile.am
+    - ...
+- lib:
+    - a.cpp
+    - b.cpp
+    - Makefile.am
+    - ...
+- configure.ac
+- ...
+</code></pre>
+<p> 需要修改的只有两个文件 - <code>configure.ac</code> 和 <code>lib/Makefile.am</code>.</p>
+<h2 id="Configure-ac"><a href="http://Configure.ac" target="_blank" rel="noopener">Configure.ac</a></h2>
+<p> 一般地， <code>configure.ac</code> 文件的开头会类似如下面所示：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">dnl Process this file with autoconf to produce a configure script.
+AC_INIT(xxx, xxx, [xxxx])
+AC_CONFIG_AUX_DIR(config)
+AC_CONFIG_SRCDIR([lib/xxx.c])
+AC_CONFIG_SRCDIR([examples/xxx.c])
+AC_CONFIG_HEADER([include/xxx.h])
+AM_INIT_AUTOMAKE([subdir-objects])
+</code></pre>
+<p> 需要做的是，在这后面加上 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">AC_ENABLE_SHARED
+AC_DISABLE_STATIC
+LT_INIT
+</code></pre>
+<p> 这里只编译动态链接的版本，所以加上了 <code>AC_DISABLE_STATIC</code>，这也是为方便之后修改 <code>lib/Makefile.am</code> 文件。</p>
+<h2 id="lib-Makefile-am">lib/Makefile.am</h2>
+<p><code>lib/Makefile.am</code> 文件中一般会有如下的内容 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">lib_LIBRARIES = libxxx.a
+libxxx_a_CFLAGS= xxx
+libxxx_a_CPPFLAGS= xxx
+libxxx_a_CXXFLAGS= xxx
+libxxx_a_LDFLAGS= xxx
+libxxx_a_SOURCES= xxx
+</code></pre>
+<p> 如果只编译动态链接的版本，只需要替换成如下的内容：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">lib_LTLIBRARIES = libxxx.la
+libxxx_la_CFLAGS= xxx
+libxxx_la_CPPFLAGS= xxx
+libxxx_la_CXXFLAGS= xxx
+libxxx_la_LDFLAGS= xxx
+libxxx_la_SOURCES= xxx
+</code></pre>
+<p> 如果要编译静态版本，最好用没修改过的版本进行编译，或者将上面的内容加上 <a href="http://Makefile.am" target="_blank" rel="noopener">Makefile.am</a> 中。</p>
+<p><strong> 注 </strong>： 若有多个 libxxx.a, 则都需要进行修改。</p>
+<h2 id="tests- 或 -examples">tests 或 examples</h2>
+<p> 有的库会带有测试程序，放在 tests 或 examples 里面。这样修改了前面的文件后，这里面的 <a href="http://Makefile.am" target="_blank" rel="noopener">Makefile.am</a> 也需要进行修改。</p>
+<ol>
+<li> 相应的库文件 <code>libxxx.a</code> 改成 <code>libxxx.so</code></li>
+<li> 链接的库路径从 <code>-L../lib/</code> 改成 <code>-L../lib/.libs</code>，因为 生成的库文件存放在 <code>lib/.libs</code> 目录下。</li>
+</ol>
+<h2 id="重新生成 -configure"> 重新生成 configure</h2>
+<p> 在做完上面的工作后，需要做的是重新生成 <code>configure</code> 文件:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">autoreconf -i
+</code></pre>
+<p> 之后编译时加上 <code>--enable-shared</code> 选项即可。</p>
+<h2 id="转换过程中的问题"> 转换过程中的问题 </h2>
+<ol>
+<li> 若 <code>configure.ac</code> 中有 <code>AC_CHECK_TOOL(AR, ar, [ar])</code> 语句，要将添加的内容放在这句后面，或去掉这一句。</li>
+<li> 若有其他依赖库，比如放在 <code>other_libs</code> 下面，这些也是需要做相应修改的。</li>
+<li>qdpxx 需要从 master 分支转到 devel 分支。</li>
+<li> 若有可执行程序， 比如在 <code>mainprog</code> 目录下， <code>mainprog</code> 下的 <a href="http://Makefile.am" target="_blank" rel="noopener">Makefile.am</a> 也需要进行相应修改。</li>
+<li> 有的库会在 configure 时，没有正常获取 include 目录，需要手动加上, 在 <code>lib/Makefile</code> 中的 <code>DEFAULT_INCLUDES</code> 选项。</li>
+</ol>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Automake/">Automake</a> <a class="tag tag--primary tag--small t-link" href="/tags/Chroma/">Chroma</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/QUDA/">QUDA</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Adding-Timer-and-Logo-in-Beamer/"
+                    data-tooltip="在 Beamer 中添加计时器和 Logo"
+                    aria-label="上一篇: 在 Beamer 中添加计时器和 Logo"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Find-What-Ports-Are-Listening-in-Linux/"
+                    data-tooltip="Find What Ports Are Listening in Linux"
+                    aria-label="下一篇: Find What Ports Are Listening in Linux"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Adding-Timer-and-Logo-in-Beamer/"
+                    data-tooltip="在 Beamer 中添加计时器和 Logo"
+                    aria-label="上一篇: 在 Beamer 中添加计时器和 Logo"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Find-What-Ports-Are-Listening-in-Linux/"
+                    data-tooltip="Find What Ports Are Listening in Linux"
+                    aria-label="下一篇: Find What Ports Are Listening in Linux"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Build-Shared-Libs-Using-Autotools/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2019/Build-Shared-Libs-Using-Autotools/';
+              
+            this.page.identifier = '2019/Build-Shared-Libs-Using-Autotools/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

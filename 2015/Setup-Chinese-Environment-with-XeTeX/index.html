@@ -1,0 +1,1127 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>使用 XeTeX 配置 LaTeX 中文环境 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在 20 世纪 80 年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。\n\n\n\nTeX/LaTeX 作为装 X 是非常好用的. 当然这不是重点. 重点是, 一般科技论文都是需要用 latex 书写的, 不仅美观, 方便, 而且是平台无关的, 许多杂志都有自己的专用木板. 什么? 你说 word? 战斗力只有 5 的渣渣, 连自己的相同版本都无法做到格式一致性. 而且时不时告诉你版本过低什么的. 如果遇上没有安装 word, 只能呵呵了. 嗯, 程序员也特别钟爱 latex. 用 latex 写出来的简历简介美观, 当然你需要好好调教才可以啦…嗯~ o(*￣▽￣*)o\nTeX 本为英文排版设计, LaTeX 自然也是如此, 但是世界上有那么多种文字, 都想用上这么高大上的排版系统啊. 中国的汉语作为使用人数最多的语言, 这种需要就更加强烈啦, 于是就有大牛开发了各种宏包, 如 CCT, CJK, xeCJK 等等, 也就有了以各种中文排版方案作为特色的 LaTeX 套装.\nA. 获取安装 LaTeX\n 要在 LaTeX 中使用中文, 首先自然是要有 latex 啦.╭(′▽`)╭(′▽`)╯…\n\nwindows 下, 可以下载 MikTeX 或 CTex… 这个不需要多说…\nlinux 下最出名的就是 TeXLive 套装了. 各种发行版都可以从仓库中安装…\nMac 下就是 MacTeX 了, TeXLive 的 马甲版本. 不嫌麻烦用 brew 装 texlive 吧 ((￣▽￣\"))\n\nLinux 下安装最好全部安装, 以免突然警告你什么什么包没有装…\nB. 中文环境配置 \n 这里主要接受 Linux 和 Mac 下的中文环境配置.\n1. CCT\n 这个很老了, 已经不维护了. 已经不推荐了.\n2. CJK\nTex 最初的设计没有考虑中文字符的问题，后来就有了 CJK 外挂宏包对 Latex 进行中文支持. CJK, 由德国人 Werner Lemberg (还不是国人 o(≧口≦)o) 编写。这个巨集包不仅仅支持繁简体中文、日文、朝鲜文等东亚语言，而且它也是一个多种语言支持包，另外还支持几十种其他不同的语言。\n 开始的时候, 但毕竟是外挂宏包，使用起来不甚方便，维护工作也很麻烦, 需要自己编译生成中文字体集，而且常常有些问题，比如，中文目录的问题就一直没能解决，总是乱码。于是有了用 unicode 编码的 xetex 的出现.\n3. XeTeX\nxetex 是一种使用 Unicode 的 TeX 排版引擎，并支持一些现代字体技术，例如 OpenType、Graphite 和 Apple Advanced Typography（AAT）, 可以直接利用其高级特性，例如额外的字形，花体，合字，可变的文本粗细等等。\nxetex 原生支持 Unicode，并默认其输入文件为 UTF-8 编码，也即, 英文字符与非英文字符不再有区别，原生支持系统字体，这意味着我们无需再额外编译字体,  故可以在不进行额外配置的情况下直接使用操作系统中安装的字体。这简直就是大家一直以来梦寐以求的功能, 大大简化了使用中文的难度. 从此再也不用使用老旧的 pdflatex,CJK 等等啦…\n 安装完 TeXLive/MacTeX 后, 就可以直接在 tex 文件中使用中文了… 下面就是一个简单的中文 tex.\n\\documentclass[12pt,a4paper]{article}\n\\usepackage{xltxtra,fontspec,xunicode}\n\n\\setmainfont{WenQuanYi Zen Hei} % 设置文档默认字体\n\\date{} % 不显示文档生成日期\n\\title{\\XeTeX{} 中英文环境测试 }\n\n\\begin{document}\n  \\maketitle\n  \\XeTeX{} is a \\TeX{} typesetting engine using Unicode and supporting modern font technologies.\\\\\n\n  \\XeTeX{} 是一个使用 Unicode 的 \\TeX{} 排版系统，并支持一些现代字体技术.\\\\\n\\end{document}\n\n 当然你需要安装 wqy-zenhei-fonts, 也可以改成其他中文字体. 保存为 test.tex, 运行以下命令:\nxelatex test.tex\n\n 打开生成的 test.pdf 就可以看到如下的 \n\n 一般来说, 到这里就可以了, 剩下的就是设置字体的问题了. 但是这样英文数字也使用中文字体了, 看上去不是很美观. 于是, xetex 和 CJK 商量了一下, 就有了 xeCJK 宏包, 可以分别指定中英文字体, 于是可以很好的排版中英混合的文章了.\n 当然首先是要使用 xeCJK 包, 添加上 \n\\usepackage[slantfont,boldfont]{xeCJK}\n\n 分别设置中英文字体, 英文字体可以不用设置, xetex 会调用默认的字体:\n\\setCJKmainfont{Kai}   % 设置缺省中文字体\n\\setCJKmonofont{Hei}   % 设置等宽字体\n%\\setmainfont{Optima}   % 英文衬线字体\n%\\setmonofont{Monaco}   % 英文等宽字体\n%\\setsansfont{Trebuchet MS} % 英文无衬线字体\n\n 下面是测试,\n\\documentclass[12pt,a4paper]{article}\n\\usepackage{xltxtra,fontspec,xunicode}\n\\usepackage[slantfont,boldfont]{xeCJK}\n\\setCJKmainfont{WenQuanYi Zen Hei}   % 设置缺省中文字体\n%\\setCJKmonofont{Hei}   % 设置等宽字体\n\n%\\setmainfont{Optima}   %% 不指定，使用 Tex 的默认英文衬线字体\n%\\setmonofont{Monaco}   % 英文等宽字体\n%\\setsansfont{Trebuchet MS} % 英文无衬线字体\n\\date{} % 不显示文档生成日期\n\\title{\\XeTeX{} 中英文环境测试 }\n\n\\begin{document}\n  \\maketitle\n  \\XeTeX{} is a \\TeX{} typesetting engine using Unicode and supporting modern font technologies.\\\\\n\n  \\XeTeX{} 是一个使用 Unicode 的 \\TeX{} 排版系统，并支持一些现代字体技术.\\\\\n\\end{document}\n\n 依照上面的, 可以看到新的效果.\n\n 中英文见加了一个空格, 看上去更加美观, 只是需要设置以下字体而已.\n 到这里应该就结束, 但是字海茫茫, 对于不熟悉的童鞋, 怎么找到需要的字体呢?\nC. 查找设置中英字体.\n1. Linux/macOS 下字体设置 \nlinux 下可以通过 fc-list 来查看已安装字体, 这是我安装的中文字体.\n$ fc-cache && fc-list :lang=zh\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Bold:style=Bold,Regular\n/usr/share/fonts/tex-gyre/texgyreheroscn-bolditalic.otf: TeX Gyre Heros Cn:style=Bold Italic\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-DemiLight.ttc: Noto Sans CJK TC,Noto Sans CJK TC DemiLight:style=DemiLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Black.ttc: Noto Serif CJK SC,Noto Serif CJK SC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Light.ttc: Noto Sans CJK SC,Noto Sans CJK SC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans CJK SC,Noto Sans CJK SC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Black.ttc: Noto Sans CJK SC,Noto Sans CJK SC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Thin.ttc: Noto Sans CJK SC,Noto Sans CJK SC Thin:style=Thin,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Thin.otf: Noto Sans CJK SC,Noto Sans CJK SC Thin:style=Thin,Regular\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Bold.otf: Source Han Serif CN, 思源宋体 CN:style=Bold\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-ExtraLight.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN ExtraLight, 思源宋体 CN ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Bold.ttc: Noto Serif CJK TC:style=Bold\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Medium.ttc: Noto Sans CJK TC,Noto Sans CJK TC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Light.ttc: Noto Serif CJK SC,Noto Serif CJK SC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Bold.ttc: Noto Serif CJK SC:style=Bold\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Regular.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Regular, 思源黑体 CN Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Light.otf: Noto Sans CJK TC,Noto Sans CJK TC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Black.ttc: Noto Sans CJK TC,Noto Sans CJK TC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Thin.ttc: Noto Sans CJK TC,Noto Sans CJK TC Thin:style=Thin,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-ExtraLight.ttc: Noto Serif CJK SC,Noto Serif CJK SC ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-ExtraLight.ttc: Noto Serif CJK TC,Noto Serif CJK TC ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Medium.ttc: Noto Serif CJK TC,Noto Serif CJK TC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Black.otf: Noto Sans CJK SC,Noto Sans CJK SC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Light.ttc: Noto Serif CJK TC,Noto Serif CJK TC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKtc-Bold.otf: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-ExtraLight.otf: Noto Serif CJK SC,Noto Serif CJK SC ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-ExtraLight.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN ExtraLight, 思源黑体 CN ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKtc-Regular.otf: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Black.otf: Noto Sans CJK TC,Noto Sans CJK TC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Bold.otf: Noto Serif CJK SC:style=Bold\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Light.otf: Noto Sans CJK SC,Noto Sans CJK SC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-Bold.otf: Noto Serif TC:style=Bold\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Medium.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Medium, 思源宋体 CN Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Regular.otf: Noto Sans CJK TC,Noto Sans CJK TC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Black.ttc: Noto Serif CJK TC,Noto Serif CJK TC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Medium.otf: Noto Serif CJK SC,Noto Serif CJK SC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Light.ttc: Noto Sans CJK TC,Noto Sans CJK TC Light:style=Light,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Normal.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Normal, 思源黑体 CN Normal:style=Normal,Regular\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-SemiBold.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN SemiBold, 思源宋体 CN SemiBold:style=SemiBold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Black.otf: Noto Serif CJK SC,Noto Serif CJK SC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-ExtraLight.otf: Noto Serif TC,Noto Serif TC ExtraLight:style=ExtraLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-Black.otf: Noto Serif TC,Noto Serif TC Black:style=Black,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-DemiLight.otf: Noto Sans CJK SC,Noto Sans CJK SC DemiLight:style=DemiLight,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Medium.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Medium, 思源黑体 CN Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKsc-Bold.otf: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Bold:style=Bold,Regular\n/usr/share/fonts/tex-gyre/texgyreheroscn-bold.otf: TeX Gyre Heros Cn:style=Bold\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-Light.otf: Noto Serif TC,Noto Serif TC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-SemiBold.otf: Noto Serif TC,Noto Serif TC SemiBold:style=SemiBold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Medium.ttc: Noto Serif CJK SC,Noto Serif CJK SC Medium:style=Medium,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Bold.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Bold, 思源黑体 CN Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Bold.otf: Noto Sans CJK TC,Noto Sans CJK TC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Medium.otf: Noto Sans CJK SC,Noto Sans CJK SC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Light.otf: Noto Serif CJK SC,Noto Serif CJK SC Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Bold.otf: Noto Sans CJK SC,Noto Sans CJK SC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Regular.otf: Noto Serif CJK SC:style=Regular\n/usr/share/fonts/tex-gyre/texgyreheroscn-italic.otf: TeX Gyre Heros Cn:style=Italic\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Heavy.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Heavy, 思源宋体 CN Heavy:style=Heavy,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-Regular.otf: Noto Serif TC:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-DemiLight.otf: Noto Sans CJK TC,Noto Sans CJK TC DemiLight:style=DemiLight,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifTC-Medium.otf: Noto Serif TC,Noto Serif TC Medium:style=Medium,Regular\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Light.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Light, 思源宋体 CN Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans CJK TC,Noto Sans CJK TC Bold:style=Bold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Medium.otf: Noto Sans CJK TC,Noto Sans CJK TC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKsc-Regular.otf: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Medium.ttc: Noto Sans CJK SC,Noto Sans CJK SC Medium:style=Medium,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans CJK SC,Noto Sans CJK SC Regular:style=Regular\n/usr/share/fonts/tex-gyre/texgyreheroscn-regular.otf: TeX Gyre Heros Cn:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Regular.otf: Noto Sans CJK SC,Noto Sans CJK SC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-SemiBold.ttc: Noto Serif CJK TC,Noto Serif CJK TC SemiBold:style=SemiBold,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Heavy.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Heavy, 思源黑体 CN Heavy:style=Heavy,Regular\n/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Light.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Light, 思源黑体 CN Light:style=Light,Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans CJK TC,Noto Sans CJK TC Regular:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-SemiBold.ttc: Noto Serif CJK SC,Noto Serif CJK SC SemiBold:style=SemiBold,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-SemiBold.otf: Noto Serif CJK SC,Noto Serif CJK SC SemiBold:style=SemiBold,Regular\n/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Regular.otf: Source Han Serif CN, 思源宋体 CN:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Thin.otf: Noto Sans CJK TC,Noto Sans CJK TC Thin:style=Thin,Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Regular.ttc: Noto Serif CJK TC:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Regular.ttc: Noto Serif CJK SC:style=Regular\n/usr/share/fonts/google-noto-cjk/NotoSansCJK-DemiLight.ttc: Noto Sans CJK SC,Noto Sans CJK SC DemiLight:style=DemiLight,Regular\n\n 可以按照所需设置字体, 比如如下这样:\n\\usepackage[slantfont,boldfont]{xeCJK}\n\\setCJKmainfont[BoldFont=Noto Sans CJK SC]{Noto Serif CJK SC}\n\\setCJKsansfont{Noto Sans CJK SC}\n\\setCJKmonofont{Noto Sans Mono CJK SC}\n\\setmainfont[BoldFont=Noto Sans][Noto Serif]\n\\setsansfont{Noto Sans}\n\\setmonofont{Noto Mono}\n\n2. Windows 下字体设置 \nWindows 下的中文字体也可以通过 fc-list :lang=zh 得到，\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolFang-Regular.otf: FandolFang,FandolFang R:style=Regular\nC:/WINDOWS/fonts/msyhl.ttc: Microsoft YaHei,Microsoft YaHei Light:style=Light,Regular\nC:/WINDOWS/fonts/Dengb.ttf: DengXian:style=Bold\nC:/WINDOWS/fonts/STZHONGS.TTF: STZhongsong:style=Regular\nC:/WINDOWS/fonts/simsun.ttc: NSimSun, 新宋体:style=Regular, 常规\nC:/WINDOWS/fonts/Dengl.ttf: DengXian,DengXian Light:style=Light,Regular\nC:/WINDOWS/fonts/simfang.ttf: FangSong:style=Regular,Normaali\nC:/WINDOWS/fonts/simkai.ttf: KaiTi:style=Regular,Normaali\nC:/WINDOWS/fonts/msyh.ttc: Microsoft YaHei UI:style=Normal\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolKai-Regular.otf: FandolKai:style=Regular\nD:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/bsmi00lp.ttf: AR PL Mingti2L Big5, 文鼎ＰＬ細上海宋:style=Reguler,Regular\nC:/WINDOWS/fonts/STCAIYUN.TTF: STCaiyun:style=Regular\nC:/WINDOWS/fonts/Deng.ttf: DengXian:style=Regular\nC:/WINDOWS/fonts/STXINGKA.TTF: STXingkai:style=Regular\nC:/WINDOWS/fonts/msyhl.ttc: Microsoft YaHei UI,Microsoft YaHei UI Light:style=Light,Regular\nC:/WINDOWS/fonts/STXINWEI.TTF: STXinwei:style=Regular\nC:/WINDOWS/fonts/msyhbd.ttc: Microsoft YaHei UI:style=Έντονα\nC:/WINDOWS/fonts/msjhl.ttc: Microsoft JhengHei, 微軟正黑體 Light:style=Light,Regular\nC:/WINDOWS/fonts/msjhl.ttc: Microsoft JhengHei UI,Microsoft JhengHei UI Light:style=Light,Regular\nC:/WINDOWS/fonts/msyh.ttc: Microsoft YaHei:style=Normal\nD:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/gbsn00lp.ttf: AR PL SungtiL GB:style=Regular\nC:/WINDOWS/fonts/SIMYOU.TTF: YouYuan:style=Regular\nC:/WINDOWS/fonts/STXIHEI.TTF: STXihei:style=Regular\nC:/WINDOWS/fonts/STKAITI.TTF: STKaiti:style=Regular\nC:/WINDOWS/fonts/STLITI.TTF: STLiti:style=Regular\nC:/WINDOWS/fonts/ARIALUNI.TTF: Arial Unicode MS:style=Regular,normal\nC:/WINDOWS/fonts/msyhbd.ttc: Microsoft YaHei:style=Έντονα\nC:/WINDOWS/fonts/simsun.ttc: SimSun, 宋体:style=Regular, 常规\nD:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/gkai00mp.ttf: AR PL KaitiM GB:style=Regular\nC:/WINDOWS/fonts/STHUPO.TTF: STHupo:style=Regular\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolHei-Bold.otf: FandolHei:style=Bold\nC:/WINDOWS/fonts/STFANGSO.TTF: STFangsong:style=Regular\nD:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/bkai00mp.ttf: AR PL KaitiM Big5, 文鼎ＰＬ中楷:style=Regular\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolSong-Bold.otf: FandolSong:style=Bold\nC:/WINDOWS/fonts/msjh.ttc: Microsoft JhengHei:style=Regular\nC:/WINDOWS/fonts/FZYTK.TTF: FZYaoTi:style=Regular\nC:/WINDOWS/fonts/SIMLI.TTF: LiSu:style=Regular\nC:/WINDOWS/fonts/msjhbd.ttc: Microsoft JhengHei UI:style=Félkövér\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolHei-Regular.otf: FandolHei:style=Regular\nC:/WINDOWS/fonts/STSONG.TTF: STSong:style=Regular\nC:/WINDOWS/fonts/msjh.ttc: Microsoft JhengHei UI:style=Regular\nC:/WINDOWS/fonts/msjhbd.ttc: Microsoft JhengHei:style=Félkövér\nC:/WINDOWS/fonts/simhei.ttf: SimHei:style=Normal\nD:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolSong-Regular.otf: FandolSong:style=Regular\nC:/WINDOWS/fonts/FZSTK.TTF: FZShuTi:style=Regular\n\n 将 LaTeX 中的 CJK 字体设置成合适的中文字体就行，如 \n\\usepackage[slantfont,boldfont]{xeCJK}\n\\setCJKmainfont[BoldFont=SimHei,ItalicFont=KaiTi]{SimSun}\n\\setCJKsansfont{SimHei}\n\\setCJKmonofont{STFangSong}\n\\setmainfont[BoldFont=Noto Sans][Noto Serif]\n\\setsansfont{Noto Sans}\n\\setmonofont{Noto Mono}\n\n3. 设置其他字体命令 \n 比如我们想要使用华文琥珀、楷体 \n\\newfontfamily\\huawenhupo{STHupo}\n\\newfontfamily\\kai{STKaiti}          % 楷体\n\n{\\huawenhupo 自定义的字体 - 华文琥珀}\n\n{\\kai 自定义的字体 - 楷体}\n\n\n\n 水水更健康 ╮(￣▽￣\")╭\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2015-10-16T15:15:13+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2015-10-16T15:15:13+08:00","description":"LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在20世纪80年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。","headline":"使用 XeTeX 配置 LaTeX 中文环境","image":["tex.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/","keywords":"LaTeX","thumbnailUrl":"tex.png"}</script>
+    <meta name="description" content="LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在20世纪80年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。">
+<meta name="keywords" content="LaTeX">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="使用 XeTeX 配置 LaTeX 中文环境">
+<meta property="og:url" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在20世纪80年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/xetex.png">
+<meta property="og:image" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/xelatex.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.734Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 XeTeX 配置 LaTeX 中文环境">
+<meta name="twitter:description" content="LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在20世纪80年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。">
+<meta name="twitter:image" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/xetex.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/tex.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/tex.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            使用 XeTeX 配置 LaTeX 中文环境
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2015-10-16T15:15:13+08:00">
+	
+		    10月 16, 2015
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/LaTeX/">LaTeX</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>LaTeX 是一种基于 TeX 的排版系统，由美国电脑学家莱斯利·兰伯特在 20 世纪 80 年代初期开发，利用这种格式，即使使用者没有排版和程序设计的知识也能在几天，甚至几小时内生成很多具有书籍品質的印刷品。对于生成复杂表格和数学公式，这一点表现得尤为突出。因此它非常适用于生成高印刷质量的科技和数学类文档。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#A- 获取安装 LaTeX"><span class="toc-text">A. 获取安装 LaTeX</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#B- 中文环境配置"><span class="toc-text">B. 中文环境配置 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-CCT"><span class="toc-text">1. CCT</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-CJK"><span class="toc-text">2. CJK</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-XeTeX"><span class="toc-text">3. XeTeX</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#C- 查找设置中英字体"><span class="toc-text">C. 查找设置中英字体.</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Linux-macOS- 下字体设置"><span class="toc-text">1. Linux/macOS 下字体设置 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Windows- 下字体设置"><span class="toc-text">2. Windows 下字体设置 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3- 设置其他字体命令"><span class="toc-text">3. 设置其他字体命令 </span></a></li></ol></li></ol>
+<p>TeX/LaTeX 作为装 X 是非常好用的. 当然这不是重点. 重点是, 一般科技论文都是需要用 latex 书写的, 不仅美观, 方便, 而且是平台无关的, 许多杂志都有自己的专用木板. 什么? 你说 word? 战斗力只有 5 的渣渣, 连自己的相同版本都无法做到格式一致性. 而且时不时告诉你版本过低什么的. 如果遇上没有安装 word, 只能呵呵了. 嗯, 程序员也特别钟爱 latex. 用 latex 写出来的简历简介美观, 当然你需要好好调教才可以啦…嗯~ o(*￣▽￣*)o</p>
+<p>TeX 本为英文排版设计, LaTeX 自然也是如此, 但是世界上有那么多种文字, 都想用上这么高大上的排版系统啊. 中国的汉语作为使用人数最多的语言, 这种需要就更加强烈啦, 于是就有大牛开发了各种宏包, 如 CCT, CJK, xeCJK 等等, 也就有了以各种中文排版方案作为特色的 LaTeX 套装.</p>
+<h2 id="A- 获取安装 LaTeX">A. 获取安装 LaTeX</h2>
+<p> 要在 LaTeX 中使用中文, 首先自然是要有 latex 啦.╭(′▽`)╭(′▽`)╯…</p>
+<ul>
+<li>windows 下, 可以下载 MikTeX 或 CTex… 这个不需要多说…</li>
+<li>linux 下最出名的就是 <a href="http://www.tug.org/" target="_blank" rel="noopener">TeXLive</a> 套装了. 各种发行版都可以从仓库中安装…</li>
+<li>Mac 下就是 <a href="http://www.tug.org/mactex/" target="_blank" rel="noopener">MacTeX</a> 了, TeXLive 的 马甲版本. 不嫌麻烦用 brew 装 texlive 吧 ((￣▽￣"))</li>
+</ul>
+<p>Linux 下安装最好全部安装, 以免突然警告你什么什么包没有装…</p>
+<h2 id="B- 中文环境配置">B. 中文环境配置 </h2>
+<p> 这里主要接受 Linux 和 Mac 下的中文环境配置.</p>
+<h3 id="1-CCT">1. CCT</h3>
+<p> 这个很老了, 已经不维护了. 已经不推荐了.</p>
+<h3 id="2-CJK">2. CJK</h3>
+<p>Tex 最初的设计没有考虑中文字符的问题，后来就有了 CJK 外挂宏包对 Latex 进行中文支持. CJK, 由德国人 Werner Lemberg (还不是国人 o(≧口≦)o) 编写。这个巨集包不仅仅支持繁简体中文、日文、朝鲜文等东亚语言，而且它也是一个多种语言支持包，另外还支持几十种其他不同的语言。</p>
+<p> 开始的时候, 但毕竟是外挂宏包，使用起来不甚方便，维护工作也很麻烦, 需要自己编译生成中文字体集，而且常常有些问题，比如，中文目录的问题就一直没能解决，总是乱码。于是有了用 unicode 编码的 xetex 的出现.</p>
+<h3 id="3-XeTeX">3. XeTeX</h3>
+<p>xetex 是一种使用 Unicode 的 TeX 排版引擎，并支持一些现代字体技术，例如 OpenType、Graphite 和 Apple Advanced Typography（AAT）, 可以直接利用其高级特性，例如额外的字形，花体，合字，可变的文本粗细等等。</p>
+<p>xetex 原生支持 Unicode，并默认其输入文件为 UTF-8 编码，也即, 英文字符与非英文字符不再有区别，原生支持系统字体，这意味着我们无需再额外编译字体,  故可以在不进行额外配置的情况下直接使用操作系统中安装的字体。这简直就是大家一直以来梦寐以求的功能, 大大简化了使用中文的难度. 从此再也不用使用老旧的 pdflatex,CJK 等等啦…</p>
+<p> 安装完 TeXLive/MacTeX 后, 就可以直接在 tex 文件中使用中文了… 下面就是一个简单的中文 tex.</p>
+<pre class=" language-language-tex"><code class="language-language-tex">\documentclass[12pt,a4paper]{article}
+\usepackage{xltxtra,fontspec,xunicode}
+
+\setmainfont{WenQuanYi Zen Hei} % 设置文档默认字体
+\date{} % 不显示文档生成日期
+\title{\XeTeX{} 中英文环境测试 }
+
+\begin{document}
+  \maketitle
+  \XeTeX{} is a \TeX{} typesetting engine using Unicode and supporting modern font technologies.\\
+
+  \XeTeX{} 是一个使用 Unicode 的 \TeX{} 排版系统，并支持一些现代字体技术.\\
+\end{document}
+</code></pre>
+<p> 当然你需要安装 <code>wqy-zenhei-fonts</code>, 也可以改成其他中文字体. 保存为 <code>test.tex</code>, 运行以下命令:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">xelatex test.tex
+</code></pre>
+<p> 打开生成的 test.pdf 就可以看到如下的 </p>
+<div class="figure center" style="width:;"><img class="fig-img" src="xetex.png" alt=""></div>
+<p> 一般来说, 到这里就可以了, 剩下的就是设置字体的问题了. 但是这样英文数字也使用中文字体了, 看上去不是很美观. 于是, xetex 和 CJK 商量了一下, 就有了 xeCJK 宏包, 可以分别指定中英文字体, 于是可以很好的排版中英混合的文章了.</p>
+<p> 当然首先是要使用 xeCJK 包, 添加上 </p>
+<pre class=" language-language-tex"><code class="language-language-tex">\usepackage[slantfont,boldfont]{xeCJK}
+</code></pre>
+<p> 分别设置中英文字体, 英文字体可以不用设置, xetex 会调用默认的字体:</p>
+<pre class=" language-language-tex"><code class="language-language-tex">\setCJKmainfont{Kai}   % 设置缺省中文字体
+\setCJKmonofont{Hei}   % 设置等宽字体
+%\setmainfont{Optima}   % 英文衬线字体
+%\setmonofont{Monaco}   % 英文等宽字体
+%\setsansfont{Trebuchet MS} % 英文无衬线字体
+</code></pre>
+<p> 下面是测试,</p>
+<pre class=" language-language-tex"><code class="language-language-tex">\documentclass[12pt,a4paper]{article}
+\usepackage{xltxtra,fontspec,xunicode}
+\usepackage[slantfont,boldfont]{xeCJK}
+\setCJKmainfont{WenQuanYi Zen Hei}   % 设置缺省中文字体
+%\setCJKmonofont{Hei}   % 设置等宽字体
+
+%\setmainfont{Optima}   %% 不指定，使用 Tex 的默认英文衬线字体
+%\setmonofont{Monaco}   % 英文等宽字体
+%\setsansfont{Trebuchet MS} % 英文无衬线字体
+\date{} % 不显示文档生成日期
+\title{\XeTeX{} 中英文环境测试 }
+
+\begin{document}
+  \maketitle
+  \XeTeX{} is a \TeX{} typesetting engine using Unicode and supporting modern font technologies.\\
+
+  \XeTeX{} 是一个使用 Unicode 的 \TeX{} 排版系统，并支持一些现代字体技术.\\
+\end{document}
+</code></pre>
+<p> 依照上面的, 可以看到新的效果.</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="xelatex.png" alt=""></div>
+<p> 中英文见加了一个空格, 看上去更加美观, 只是需要设置以下字体而已.</p>
+<p> 到这里应该就结束, 但是字海茫茫, 对于不熟悉的童鞋, 怎么找到需要的字体呢?</p>
+<h2 id="C- 查找设置中英字体">C. 查找设置中英字体.</h2>
+<h3 id="1-Linux-macOS- 下字体设置">1. Linux/macOS 下字体设置 </h3>
+<p>linux 下可以通过 <code>fc-list</code> 来查看已安装字体, 这是我安装的中文字体.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ fc-cache && fc-list :lang=zh
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Bold:style=Bold,Regular
+/usr/share/fonts/tex-gyre/texgyreheroscn-bolditalic.otf: TeX Gyre Heros Cn:style=Bold Italic
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-DemiLight.ttc: Noto Sans CJK TC,Noto Sans CJK TC DemiLight:style=DemiLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Black.ttc: Noto Serif CJK SC,Noto Serif CJK SC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Light.ttc: Noto Sans CJK SC,Noto Sans CJK SC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans CJK SC,Noto Sans CJK SC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Black.ttc: Noto Sans CJK SC,Noto Sans CJK SC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Thin.ttc: Noto Sans CJK SC,Noto Sans CJK SC Thin:style=Thin,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Thin.otf: Noto Sans CJK SC,Noto Sans CJK SC Thin:style=Thin,Regular
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Bold.otf: Source Han Serif CN, 思源宋体 CN:style=Bold
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-ExtraLight.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN ExtraLight, 思源宋体 CN ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Bold.ttc: Noto Serif CJK TC:style=Bold
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Medium.ttc: Noto Sans CJK TC,Noto Sans CJK TC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Light.ttc: Noto Serif CJK SC,Noto Serif CJK SC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Bold.ttc: Noto Serif CJK SC:style=Bold
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Regular.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Regular, 思源黑体 CN Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Light.otf: Noto Sans CJK TC,Noto Sans CJK TC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Black.ttc: Noto Sans CJK TC,Noto Sans CJK TC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Thin.ttc: Noto Sans CJK TC,Noto Sans CJK TC Thin:style=Thin,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-ExtraLight.ttc: Noto Serif CJK SC,Noto Serif CJK SC ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-ExtraLight.ttc: Noto Serif CJK TC,Noto Serif CJK TC ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Medium.ttc: Noto Serif CJK TC,Noto Serif CJK TC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Black.otf: Noto Sans CJK SC,Noto Sans CJK SC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Light.ttc: Noto Serif CJK TC,Noto Serif CJK TC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKtc-Bold.otf: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-ExtraLight.otf: Noto Serif CJK SC,Noto Serif CJK SC ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-ExtraLight.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN ExtraLight, 思源黑体 CN ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKtc-Regular.otf: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Black.otf: Noto Sans CJK TC,Noto Sans CJK TC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Bold.otf: Noto Serif CJK SC:style=Bold
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Light.otf: Noto Sans CJK SC,Noto Sans CJK SC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-Bold.otf: Noto Serif TC:style=Bold
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Medium.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Medium, 思源宋体 CN Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Regular.otf: Noto Sans CJK TC,Noto Sans CJK TC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Black.ttc: Noto Serif CJK TC,Noto Serif CJK TC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Medium.otf: Noto Serif CJK SC,Noto Serif CJK SC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Light.ttc: Noto Sans CJK TC,Noto Sans CJK TC Light:style=Light,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Normal.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Normal, 思源黑体 CN Normal:style=Normal,Regular
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-SemiBold.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN SemiBold, 思源宋体 CN SemiBold:style=SemiBold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Black.otf: Noto Serif CJK SC,Noto Serif CJK SC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-ExtraLight.otf: Noto Serif TC,Noto Serif TC ExtraLight:style=ExtraLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-Black.otf: Noto Serif TC,Noto Serif TC Black:style=Black,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-DemiLight.otf: Noto Sans CJK SC,Noto Sans CJK SC DemiLight:style=DemiLight,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Medium.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Medium, 思源黑体 CN Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKsc-Bold.otf: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Bold:style=Bold,Regular
+/usr/share/fonts/tex-gyre/texgyreheroscn-bold.otf: TeX Gyre Heros Cn:style=Bold
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-Light.otf: Noto Serif TC,Noto Serif TC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-SemiBold.otf: Noto Serif TC,Noto Serif TC SemiBold:style=SemiBold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Medium.ttc: Noto Serif CJK SC,Noto Serif CJK SC Medium:style=Medium,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Bold.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Bold, 思源黑体 CN Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK TC,Noto Sans Mono CJK TC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Bold.otf: Noto Sans CJK TC,Noto Sans CJK TC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Medium.otf: Noto Sans CJK SC,Noto Sans CJK SC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Light.otf: Noto Serif CJK SC,Noto Serif CJK SC Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Bold.otf: Noto Sans CJK SC,Noto Sans CJK SC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-Regular.otf: Noto Serif CJK SC:style=Regular
+/usr/share/fonts/tex-gyre/texgyreheroscn-italic.otf: TeX Gyre Heros Cn:style=Italic
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Heavy.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Heavy, 思源宋体 CN Heavy:style=Heavy,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-Regular.otf: Noto Serif TC:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-DemiLight.otf: Noto Sans CJK TC,Noto Sans CJK TC DemiLight:style=DemiLight,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifTC-Medium.otf: Noto Serif TC,Noto Serif TC Medium:style=Medium,Regular
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Light.otf: Source Han Serif CN, 思源宋体 CN,Source Han Serif CN Light, 思源宋体 CN Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Bold.ttc: Noto Sans CJK TC,Noto Sans CJK TC Bold:style=Bold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Medium.otf: Noto Sans CJK TC,Noto Sans CJK TC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansMonoCJKsc-Regular.otf: Noto Sans Mono CJK SC,Noto Sans Mono CJK SC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Medium.ttc: Noto Sans CJK SC,Noto Sans CJK SC Medium:style=Medium,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans CJK SC,Noto Sans CJK SC Regular:style=Regular
+/usr/share/fonts/tex-gyre/texgyreheroscn-regular.otf: TeX Gyre Heros Cn:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Regular.otf: Noto Sans CJK SC,Noto Sans CJK SC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-SemiBold.ttc: Noto Serif CJK TC,Noto Serif CJK TC SemiBold:style=SemiBold,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Heavy.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Heavy, 思源黑体 CN Heavy:style=Heavy,Regular
+/usr/share/fonts/adobe-source-han-sans-cn/SourceHanSansCN-Light.otf: Source Han Sans CN, 思源黑体 CN,Source Han Sans CN Light, 思源黑体 CN Light:style=Light,Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc: Noto Sans CJK TC,Noto Sans CJK TC Regular:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-SemiBold.ttc: Noto Serif CJK SC,Noto Serif CJK SC SemiBold:style=SemiBold,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJKsc-SemiBold.otf: Noto Serif CJK SC,Noto Serif CJK SC SemiBold:style=SemiBold,Regular
+/usr/share/fonts/adobe-source-han-serif-cn/SourceHanSerifCN-Regular.otf: Source Han Serif CN, 思源宋体 CN:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJKtc-Thin.otf: Noto Sans CJK TC,Noto Sans CJK TC Thin:style=Thin,Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Regular.ttc: Noto Serif CJK TC:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Regular.ttc: Noto Serif CJK SC:style=Regular
+/usr/share/fonts/google-noto-cjk/NotoSansCJK-DemiLight.ttc: Noto Sans CJK SC,Noto Sans CJK SC DemiLight:style=DemiLight,Regular
+</code></pre>
+<p> 可以按照所需设置字体, 比如如下这样:</p>
+<pre class=" language-language-tex"><code class="language-language-tex">\usepackage[slantfont,boldfont]{xeCJK}
+\setCJKmainfont[BoldFont=Noto Sans CJK SC]{Noto Serif CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\setmainfont[BoldFont=Noto Sans][Noto Serif]
+\setsansfont{Noto Sans}
+\setmonofont{Noto Mono}
+</code></pre>
+<h3 id="2-Windows- 下字体设置">2. Windows 下字体设置 </h3>
+<p>Windows 下的中文字体也可以通过 <code>fc-list :lang=zh</code> 得到，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolFang-Regular.otf: FandolFang,FandolFang R:style=Regular
+C:/WINDOWS/fonts/msyhl.ttc: Microsoft YaHei,Microsoft YaHei Light:style=Light,Regular
+C:/WINDOWS/fonts/Dengb.ttf: DengXian:style=Bold
+C:/WINDOWS/fonts/STZHONGS.TTF: STZhongsong:style=Regular
+C:/WINDOWS/fonts/simsun.ttc: NSimSun, 新宋体:style=Regular, 常规
+C:/WINDOWS/fonts/Dengl.ttf: DengXian,DengXian Light:style=Light,Regular
+C:/WINDOWS/fonts/simfang.ttf: FangSong:style=Regular,Normaali
+C:/WINDOWS/fonts/simkai.ttf: KaiTi:style=Regular,Normaali
+C:/WINDOWS/fonts/msyh.ttc: Microsoft YaHei UI:style=Normal
+D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolKai-Regular.otf: FandolKai:style=Regular
+D:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/bsmi00lp.ttf: AR PL Mingti2L Big5, 文鼎ＰＬ細上海宋:style=Reguler,Regular
+C:/WINDOWS/fonts/STCAIYUN.TTF: STCaiyun:style=Regular
+C:/WINDOWS/fonts/Deng.ttf: DengXian:style=Regular
+C:/WINDOWS/fonts/STXINGKA.TTF: STXingkai:style=Regular
+C:/WINDOWS/fonts/msyhl.ttc: Microsoft YaHei UI,Microsoft YaHei UI Light:style=Light,Regular
+C:/WINDOWS/fonts/STXINWEI.TTF: STXinwei:style=Regular
+C:/WINDOWS/fonts/msyhbd.ttc: Microsoft YaHei UI:style=Έντονα
+C:/WINDOWS/fonts/msjhl.ttc: Microsoft JhengHei, 微軟正黑體 Light:style=Light,Regular
+C:/WINDOWS/fonts/msjhl.ttc: Microsoft JhengHei UI,Microsoft JhengHei UI Light:style=Light,Regular
+C:/WINDOWS/fonts/msyh.ttc: Microsoft YaHei:style=Normal
+D:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/gbsn00lp.ttf: AR PL SungtiL GB:style=Regular
+C:/WINDOWS/fonts/SIMYOU.TTF: YouYuan:style=Regular
+C:/WINDOWS/fonts/STXIHEI.TTF: STXihei:style=Regular
+C:/WINDOWS/fonts/STKAITI.TTF: STKaiti:style=Regular
+C:/WINDOWS/fonts/STLITI.TTF: STLiti:style=Regular
+C:/WINDOWS/fonts/ARIALUNI.TTF: Arial Unicode MS:style=Regular,normal
+C:/WINDOWS/fonts/msyhbd.ttc: Microsoft YaHei:style=Έντονα
+C:/WINDOWS/fonts/simsun.ttc: SimSun, 宋体:style=Regular, 常规
+D:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/gkai00mp.ttf: AR PL KaitiM GB:style=Regular
+C:/WINDOWS/fonts/STHUPO.TTF: STHupo:style=Regular
+D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolHei-Bold.otf: FandolHei:style=Bold
+C:/WINDOWS/fonts/STFANGSO.TTF: STFangsong:style=Regular
+D:/Program Files/texlive/2018/texmf-dist/fonts/truetype/public/arphic-ttf/bkai00mp.ttf: AR PL KaitiM Big5, 文鼎ＰＬ中楷:style=Regular
+D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolSong-Bold.otf: FandolSong:style=Bold
+C:/WINDOWS/fonts/msjh.ttc: Microsoft JhengHei:style=Regular
+C:/WINDOWS/fonts/FZYTK.TTF: FZYaoTi:style=Regular
+C:/WINDOWS/fonts/SIMLI.TTF: LiSu:style=Regular
+C:/WINDOWS/fonts/msjhbd.ttc: Microsoft JhengHei UI:style=Félkövér
+D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolHei-Regular.otf: FandolHei:style=Regular
+C:/WINDOWS/fonts/STSONG.TTF: STSong:style=Regular
+C:/WINDOWS/fonts/msjh.ttc: Microsoft JhengHei UI:style=Regular
+C:/WINDOWS/fonts/msjhbd.ttc: Microsoft JhengHei:style=Félkövér
+C:/WINDOWS/fonts/simhei.ttf: SimHei:style=Normal
+D:/Program Files/texlive/2018/texmf-dist/fonts/opentype/public/fandol/FandolSong-Regular.otf: FandolSong:style=Regular
+C:/WINDOWS/fonts/FZSTK.TTF: FZShuTi:style=Regular
+</code></pre>
+<p> 将 <code>LaTeX</code> 中的 CJK 字体设置成合适的中文字体就行，如 </p>
+<pre class=" language-language-tex"><code class="language-language-tex">\usepackage[slantfont,boldfont]{xeCJK}
+\setCJKmainfont[BoldFont=SimHei,ItalicFont=KaiTi]{SimSun}
+\setCJKsansfont{SimHei}
+\setCJKmonofont{STFangSong}
+\setmainfont[BoldFont=Noto Sans][Noto Serif]
+\setsansfont{Noto Sans}
+\setmonofont{Noto Mono}
+</code></pre>
+<h3 id="3- 设置其他字体命令">3. 设置其他字体命令 </h3>
+<p> 比如我们想要使用华文琥珀、楷体 </p>
+<pre class=" language-language-tex"><code class="language-language-tex">\newfontfamily\huawenhupo{STHupo}
+\newfontfamily\kai{STKaiti}          % 楷体
+
+{\huawenhupo 自定义的字体 - 华文琥珀}
+
+{\kai 自定义的字体 - 楷体}
+
+</code></pre>
+<hr>
+<p> 水水更健康 ╮(￣▽￣")╭</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/LaTeX/">LaTeX</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Romance-in-How-I-Met-Your-Mother/"
+                    data-tooltip="浪漫稍纵即逝 --《老爸老妈浪漫史》经典台词"
+                    aria-label="上一篇: 浪漫稍纵即逝 --《老爸老妈浪漫史》经典台词"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Configure-Apache-Under-OSX-10-9-10-10/"
+                    data-tooltip="Configure Apache Under OSX 10.9 &amp; 10.10"
+                    aria-label="下一篇: Configure Apache Under OSX 10.9 &amp; 10.10"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Romance-in-How-I-Met-Your-Mother/"
+                    data-tooltip="浪漫稍纵即逝 --《老爸老妈浪漫史》经典台词"
+                    aria-label="上一篇: 浪漫稍纵即逝 --《老爸老妈浪漫史》经典台词"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Configure-Apache-Under-OSX-10-9-10-10/"
+                    data-tooltip="Configure Apache Under OSX 10.9 &amp; 10.10"
+                    aria-label="下一篇: Configure Apache Under OSX 10.9 &amp; 10.10"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/';
+              
+            this.page.identifier = '2015/Setup-Chinese-Environment-with-XeTeX/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

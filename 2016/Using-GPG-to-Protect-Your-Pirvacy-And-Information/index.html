@@ -1,0 +1,1023 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Using GPG to Protect Your Pirvacy and Information - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"GPG or GnuPG 是目前最流行、最好用的加密工具之一。是由 GNU 出品的 PGP 的开源实现版本. 广泛应用于加密、数字签章及产生非对称匙对等.\n\n\n\n\nWhy Use GPG?\n自从登登同学勇敢举报了美帝大范围窃听民众通讯之后, 越来越多的人开始注意自己的个人隐私 (o(▽)o (好~~). 其推荐的 tails 也是非常不错. 用 GPG 来加密往来邮件, 加密文件, 以防  帝国   美帝  窃听个人隐私…(\"▔□▔).(万一你写给女盆友的  亲密的 情书被偷看了, 嗯…\n\n如何获取 GPG 呢?\nUnder Linux\n在 fedora/SL/Centos 下:\nsudo dnf install -y gnupg2\n#or\nsudo yum install -y gnupg2\n\ndebian/ubuntu:\nsudo apt-get install gnupg2\n#or\nsudo apt install gnupg2\n\nopensuse:\nsudo zypper in gnupg2\n\nUnder Mac\nmac 下的推荐GPGTools, 直接下载安装就好了. 还有一个macgpg, 现在不推荐使用了.\n源码安装\n如果想自己编译, 可以下载源码编译安装.\n\n怎么使用 GPG 呢?\n生成个人密钥\n在终端下运行如下命令\ngpg --gen-key\n\n会看到如下的输出:\ngpg (GnuPG) 1.4.19; Copyright (C) 2015 Free Software Foundation, Inc.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\ngpg: keyring '/home/dark/.gnupg/secring.gpg' created\ngpg: keyring '/home/dark/.gnupg/pubring.gpg' created\nPlease select what kind of key you want:\n   (1) RSA and RSA (default)\n   (2) DSA and Elgamal\n   (3) DSA (sign only)\n   (4) RSA (sign only)\nYour selection?\n\n一般选择 1 就好, 接下来就是密钥的长度, 过期时效, 名字, 邮箱, 注释, 最后输入密码(一定要记住). 最后的最后确认一遍, 然后随便做点什么小动作给他点熵值.\n几分钟后你会看到类似如下的结果:\nkey 577F4A22 marked as ultimately trusted\npublic and secret key created and signed.\n\ngpg: checking the trustdb\ngpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model\ngpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u\npub   4096R/577F4A22 2015-07-01\n      Key fingerprint = A573 2A0D 7237 5738 3A41  6A0D 2565 7C7D 577F 4A22\nuid                  Yujiang Bi (Created at 2015.07.01. Old keys are not used.) \nsub   4096R/56AE325C 2015-07-01\n\n其中, uid就是  用户 ID, 577F4A22 也可以用来当作  用户 ID, 以下用 UID 代替.\n接着生成一张 \" 撤销证书 \", 用来将来密钥作废时，请求外部的公钥服务器撤销你的公钥\ngpg --output revoke.asc --gen-revoke UID\n\n同样地, 确认, 原因, 注释, 密码, revoke.asc 就是撤销证书, 好好保存. 不要让别人偷了去了.\n管理个人密钥\n列出密钥\ngpg --list-keys\n\n这会列出系统已有密钥, 如下:\n/home/dark/.gnupg/pubring.gpg\n-----------------------------\npub   4096R/577F4A22 2015-07-01\nuid   Yujiang Bi (Created at 2015.07.01. Old keys are not used.) \nsub   4096R/56AE325C 2015-07-01\n\n第一行 pubring.gpg- 显示公钥文件名，第三行显示公钥特征（4096 位，Hash 字符串和生成时间），第四行显示 \" 用户 ID\"，第五行显示私钥特征。\n删除密钥\n列出密钥后, 可以删除不用的密钥.\ngpg --delete-key UID\n\n这样就删除了 UID 这个密钥\n输出密钥\n公钥文件（.gnupg/pubring.gpg）以二进制形式储存, 可以这样导出到 ASCII 文本中:\ngpg --armor --output public.txt --export UID\n\n导出密钥到 ASCII 文本中:\ngpg --armor --output private.txt --export-secret-keys UID\n\n上传密钥\n公钥服务器是网络上专门储存用户公钥的服务器, 上传到公钥服务器可以让别人导入你的公钥, 进而向你发送加密文件或邮件.\ngpg --send-keys UID --keyserver hkp://subkeys.pgp.net\n\n这样, 你的公钥就上传到了公钥服务器上了, 通过交换机制，所有的公钥服务器最终都会包含你的公钥。由于公钥服务器不会检查上传人的身份, 故需要你将你的公钥指纹发布到网上, 确保真实性, 让其他下载你公钥的人可以检验是否为真. 用下面的命令输出你的公钥指纹.\ngpg --fingerprint UID\n\n我的公钥指纹是\npub 4096R/577F4A22 2015-07-01\n    Key fingerprint = A573 2A0D 7237 5738 3A41 6A0D 2565 7C7D 577F 4A22\n\n导入密钥\n同样的, 你可以从公钥服务器上导入别人的公钥:\ngpg --keyserver keys.gnupg.net --search-key UID\n\n--search-key 参数可以是邮箱, 或者 uid的名字.\n如果准确知道导入公钥的 uid, 可以直接导入\ngpg --keyserver keys.gnupg.net --rec-key UID\n\n或者让别人直接发给你, 然后导入\ngpg --import [key-file]\n\n确定公钥的真实性后, 可以对其签收:\ngpg --sign-key UID\n\n同样上面也能导入其他的自己的秘钥.\n文件加密解密\n文件加密\n假定加密文件为 file, 加密后的文件为 en-file:\ngpg --recipient UID --output en-file --encrypt file\n\nUID是接收人的秘钥UID.\n文件解密\n收到别人给自己的加密文件 file, 可以解密到 de-file\ngpg --output de-file -d file\n\n不加--output 会直接输出到终端\n文件数字签名\n对文件签名\n有时候我们需要对文件签名，表示这个文件确实是本人发出的, 若有多个秘钥, 则需要加上 -u(--local-user) uid\ngpg [-u UID] --sign file\n\n之后会生成一个file.gpg 的二进制文件, 用--cleansign 代替--sign 会生成 ASCII 文件 file.asc\n可以将签名写进另一个文件, 高度推荐这种用法，尤其是对二进制文件（如文档）签名的时候。另外， --armor 选项在这儿也非常有用, 会生成 ASCII 码形式的签名文件, 不加则是二进制的.\ngpg [-u UID] --armor --detach-sign file\n#or\ngpg -a -b [-u UID] file\n\n对文件签名验证\n收到别人签名后的文件, 需要用对方的公钥验证签名是否为真, 如果没有其公钥, 需要先导入.\ngpg --verify file.asc\n\n如果是签名和文件合在一起, 可以使用如下命令提取原始文件:\ngpg --output file.orig -d file.asc\n\n签名并加密\n有时候我们需要签名的时候进行加密, 可以这样做:\ngpg [-u Sender] [-r Recipient] [--armor] --sign [--clearsign] --encrypt [Data]\n\nSender 是自己的 UID, Recipient 是对方的 UID.\n验证签名并解密\n如果数据既签名又加密, 则验证签名过程是在解密中进行的\ngpg --output de-file -d file\n\n\n邮件加密解密\n… Absent Now…\n\n水水更健康 \"o((&gt;ω&lt;))o\"\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2016-01-13T17:29:43+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2016-01-13T17:29:43+08:00","description":"GPG or GnuPG 是目前最流行、最好用的加密工具之一。是由GNU出品的PGP的开源实现版本.广泛应用于加密、数字签章及产生非对称匙对等.","headline":"Using GPG to Protect Your Pirvacy and Information","image":["gpg.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/","keywords":"Linux, macOS, gpg","thumbnailUrl":"gpg.png"}</script>
+    <meta name="description" content="GPG or GnuPG 是目前最流行、最好用的加密工具之一。是由GNU出品的PGP的开源实现版本.广泛应用于加密、数字签章及产生非对称匙对等.">
+<meta name="keywords" content="Linux,macOS,gpg">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Using GPG to Protect Your Pirvacy and Information">
+<meta property="og:url" content="https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="GPG or GnuPG 是目前最流行、最好用的加密工具之一。是由GNU出品的PGP的开源实现版本.广泛应用于加密、数字签章及产生非对称匙对等.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/gnupg.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.741Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Using GPG to Protect Your Pirvacy and Information">
+<meta name="twitter:description" content="GPG or GnuPG 是目前最流行、最好用的加密工具之一。是由GNU出品的PGP的开源实现版本.广泛应用于加密、数字签章及产生非对称匙对等.">
+<meta name="twitter:image" content="https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/gnupg.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/gpg.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/gpg.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Using GPG to Protect Your Pirvacy and Information
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2016-01-13T17:29:43+08:00">
+	
+		    1月 13, 2016
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p><a href="http://www.gnupg.org/" target="_blank" rel="noopener">GPG</a> or GnuPG 是目前最流行、最好用的加密工具之一。是由 GNU 出品的 <strong>PGP</strong> 的开源实现版本. 广泛应用于加密、数字签章及产生非对称匙对等.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-Use-GPG"><span class="toc-text">Why Use GPG?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#如何获取 GPG 呢"><span class="toc-text">如何获取 GPG 呢?</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Under-Linux"><span class="toc-text">Under Linux</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Under-Mac"><span class="toc-text">Under Mac</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#源码安装"><span class="toc-text">源码安装</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#怎么使用 GPG 呢"><span class="toc-text">怎么使用 GPG 呢?</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#生成个人密钥"><span class="toc-text">生成个人密钥</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#管理个人密钥"><span class="toc-text">管理个人密钥</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#列出密钥"><span class="toc-text">列出密钥</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#删除密钥"><span class="toc-text">删除密钥</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#输出密钥"><span class="toc-text">输出密钥</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#上传密钥"><span class="toc-text">上传密钥</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#导入密钥"><span class="toc-text">导入密钥</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#文件加密解密"><span class="toc-text">文件加密解密</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#文件加密"><span class="toc-text">文件加密</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#文件解密"><span class="toc-text">文件解密</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#文件数字签名"><span class="toc-text">文件数字签名</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#对文件签名"><span class="toc-text">对文件签名</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#对文件签名验证"><span class="toc-text">对文件签名验证</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#签名并加密"><span class="toc-text">签名并加密</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#验证签名并解密"><span class="toc-text">验证签名并解密</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#邮件加密解密"><span class="toc-text">邮件加密解密</span></a></li></ol></li></ol>
+<div class="figure center" style="width:;"><img class="fig-img" src="gnupg.png" alt=""></div>
+<h2 id="Why-Use-GPG">Why Use GPG?</h2>
+<p>自从登登同学勇敢举报了美帝大范围窃听民众通讯之后, 越来越多的人开始注意自己的个人隐私 (o(<em><sup>▽</sup></em>)o (好~~). 其推荐的 tails 也是非常不错. 用 GPG 来加密往来邮件, 加密文件, 以防 <s> 帝国 </s> <strong> 美帝 </strong> 窃听个人隐私…("▔□▔).(万一你写给女盆友的 <s> 亲密的</s> 情书被偷看了, 嗯…</p>
+<hr>
+<h2 id="如何获取 GPG 呢">如何获取 GPG 呢?</h2>
+<h3 id="Under-Linux">Under Linux</h3>
+<p>在 fedora/SL/Centos 下:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo dnf install -y gnupg2
+#or
+sudo yum install -y gnupg2
+</code></pre>
+<p>debian/ubuntu:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo apt-get install gnupg2
+#or
+sudo apt install gnupg2
+</code></pre>
+<p>opensuse:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo zypper in gnupg2
+</code></pre>
+<h3 id="Under-Mac">Under Mac</h3>
+<p>mac 下的推荐<a href="https://gpgtools.org/" target="_blank" rel="noopener">GPGTools</a>, 直接下载安装就好了. 还有一个<a href="https://sourceforge.net/projects/macgpg/" target="_blank" rel="noopener">macgpg</a>, 现在不推荐使用了.</p>
+<h3 id="源码安装">源码安装</h3>
+<p>如果想自己编译, 可以下载源码编译安装.</p>
+<hr>
+<h2 id="怎么使用 GPG 呢">怎么使用 GPG 呢?</h2>
+<h3 id="生成个人密钥">生成个人密钥</h3>
+<p>在终端下运行如下命令</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --gen-key
+</code></pre>
+<p>会看到如下的输出:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg (GnuPG) 1.4.19; Copyright (C) 2015 Free Software Foundation, Inc.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+gpg: keyring '/home/dark/.gnupg/secring.gpg' created
+gpg: keyring '/home/dark/.gnupg/pubring.gpg' created
+Please select what kind of key you want:
+   (1) RSA and RSA (default)
+   (2) DSA and Elgamal
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+Your selection?
+</code></pre>
+<p>一般选择 <strong>1</strong> 就好, 接下来就是密钥的长度, 过期时效, 名字, 邮箱, 注释, 最后输入密码(一定要记住). 最后的最后确认一遍, 然后随便做点什么小动作给他点熵值.</p>
+<p>几分钟后你会看到类似如下的结果:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">key 577F4A22 marked as ultimately trusted
+public and secret key created and signed.
+
+gpg: checking the trustdb
+gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+pub   4096R/577F4A22 2015-07-01
+      Key fingerprint = A573 2A0D 7237 5738 3A41  6A0D 2565 7C7D 577F 4A22
+uid                  Yujiang Bi (Created at 2015.07.01. Old keys are not used.) <byujiang@gmail.com>
+sub   4096R/56AE325C 2015-07-01
+</code></pre>
+<p>其中, <code>uid</code>就是 <code> 用户 ID</code>, <code>577F4A22</code> 也可以用来当作 <code> 用户 ID</code>, 以下用 <code>UID</code> 代替.<br>
+接着生成一张 " 撤销证书 ", 用来将来密钥作废时，请求外部的公钥服务器撤销你的公钥</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --output revoke.asc --gen-revoke UID
+</code></pre>
+<p>同样地, 确认, 原因, 注释, 密码, revoke.asc 就是撤销证书, 好好保存. 不要让别人偷了去了.</p>
+<h3 id="管理个人密钥">管理个人密钥</h3>
+<h4 id="列出密钥">列出密钥</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --list-keys
+</code></pre>
+<p>这会列出系统已有密钥, 如下:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">/home/dark/.gnupg/pubring.gpg
+-----------------------------
+pub   4096R/577F4A22 2015-07-01
+uid   Yujiang Bi (Created at 2015.07.01. Old keys are not used.) <byujiang@gmail.com>
+sub   4096R/56AE325C 2015-07-01
+</code></pre>
+<p>第一行 pubring.gpg- 显示公钥文件名，第三行显示公钥特征（4096 位，Hash 字符串和生成时间），第四行显示 " 用户 ID"，第五行显示私钥特征。</p>
+<h4 id="删除密钥">删除密钥</h4>
+<p>列出密钥后, 可以删除不用的密钥.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --delete-key UID
+</code></pre>
+<p>这样就删除了 <code>UID</code> 这个密钥</p>
+<h4 id="输出密钥">输出密钥</h4>
+<p>公钥文件（.gnupg/pubring.gpg）以二进制形式储存, 可以这样导出到 ASCII 文本中:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --armor --output public.txt --export UID
+</code></pre>
+<p>导出密钥到 ASCII 文本中:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --armor --output private.txt --export-secret-keys UID
+</code></pre>
+<h4 id="上传密钥">上传密钥</h4>
+<p>公钥服务器是网络上专门储存用户公钥的服务器, 上传到公钥服务器可以让别人导入你的公钥, 进而向你发送加密文件或邮件.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --send-keys UID --keyserver hkp://subkeys.pgp.net
+</code></pre>
+<p>这样, 你的公钥就上传到了公钥服务器上了, 通过交换机制，所有的公钥服务器最终都会包含你的公钥。由于公钥服务器不会检查上传人的身份, 故需要你将你的公钥指纹发布到网上, 确保真实性, 让其他下载你公钥的人可以检验是否为真. 用下面的命令输出你的公钥指纹.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --fingerprint UID
+</code></pre>
+<p>我的公钥指纹是</p>
+<pre class=" language-language-bash"><code class="language-language-bash">pub 4096R/577F4A22 2015-07-01
+    Key fingerprint = A573 2A0D 7237 5738 3A41 6A0D 2565 7C7D 577F 4A22
+</code></pre>
+<h4 id="导入密钥">导入密钥</h4>
+<p>同样的, 你可以从公钥服务器上导入别人的公钥:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --keyserver keys.gnupg.net --search-key UID
+</code></pre>
+<p><code>--search-key</code> 参数可以是邮箱, 或者 <code>uid</code>的名字.<br>
+如果准确知道导入公钥的 <code>uid</code>, 可以直接导入</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --keyserver keys.gnupg.net --rec-key UID
+</code></pre>
+<p>或者让别人直接发给你, 然后导入</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --import [key-file]
+</code></pre>
+<p>确定公钥的真实性后, 可以对其签收:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --sign-key UID
+</code></pre>
+<p>同样上面也能导入其他的自己的秘钥.</p>
+<h3 id="文件加密解密">文件加密解密</h3>
+<h4 id="文件加密">文件加密</h4>
+<p>假定加密文件为 <code>file</code>, 加密后的文件为 <code>en-file</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --recipient UID --output en-file --encrypt file
+</code></pre>
+<p><code>UID</code>是接收人的秘钥<code>UID</code>.</p>
+<h4 id="文件解密">文件解密</h4>
+<p>收到别人给自己的加密文件 <code>file</code>, 可以解密到 <code>de-file</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --output de-file -d file
+</code></pre>
+<p>不加<code>--output</code> 会直接输出到终端</p>
+<h3 id="文件数字签名">文件数字签名</h3>
+<h4 id="对文件签名">对文件签名</h4>
+<p>有时候我们需要对文件签名，表示这个文件确实是本人发出的, 若有多个秘钥, 则需要加上 <code>-u(--local-user) uid</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg [-u UID] --sign file
+</code></pre>
+<p>之后会生成一个<code>file.gpg</code> 的二进制文件, 用<code>--cleansign</code> 代替<code>--sign</code> 会生成 ASCII 文件 <code>file.asc</code></p>
+<p>可以将签名写进另一个文件, 高度推荐这种用法，尤其是对二进制文件（如文档）签名的时候。另外， <code>--armor</code> 选项在这儿也非常有用, 会生成 ASCII 码形式的签名文件, 不加则是二进制的.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg [-u UID] --armor --detach-sign file
+#or
+gpg -a -b [-u UID] file
+</code></pre>
+<h4 id="对文件签名验证">对文件签名验证</h4>
+<p>收到别人签名后的文件, 需要用对方的公钥验证签名是否为真, 如果没有其公钥, 需要先导入.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --verify file.asc
+</code></pre>
+<p>如果是签名和文件合在一起, 可以使用如下命令提取原始文件:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --output file.orig -d file.asc
+</code></pre>
+<h4 id="签名并加密">签名并加密</h4>
+<p>有时候我们需要签名的时候进行加密, 可以这样做:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg [-u Sender] [-r Recipient] [--armor] --sign [--clearsign] --encrypt [Data]
+</code></pre>
+<p><code>Sender</code> 是自己的 <code>UID</code>, <code>Recipient</code> 是对方的 <code>UID</code>.</p>
+<h4 id="验证签名并解密">验证签名并解密</h4>
+<p>如果数据既签名又加密, 则验证签名过程是在解密中进行的</p>
+<pre class=" language-language-bash"><code class="language-language-bash">gpg --output de-file -d file
+</code></pre>
+<hr>
+<h3 id="邮件加密解密">邮件加密解密</h3>
+<p>… Absent Now…</p>
+<hr>
+<p>水水更健康 "o((&gt;ω&lt;))o"</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/gpg/">gpg</a> <a class="tag tag--primary tag--small t-link" href="/tags/macOS/">macOS</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    data-tooltip="Using Hexo to Build Your Personal Static Blog"
+                    aria-label="上一篇: Using Hexo to Build Your Personal Static Blog"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Multiplot-in-Gnuplot/"
+                    data-tooltip="Multiplot in Gnuplot"
+                    aria-label="下一篇: Multiplot in Gnuplot"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    data-tooltip="Using Hexo to Build Your Personal Static Blog"
+                    aria-label="上一篇: Using Hexo to Build Your Personal Static Blog"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Multiplot-in-Gnuplot/"
+                    data-tooltip="Multiplot in Gnuplot"
+                    aria-label="下一篇: Multiplot in Gnuplot"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/';
+              
+            this.page.identifier = '2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

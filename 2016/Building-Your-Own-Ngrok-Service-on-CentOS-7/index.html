@@ -1,0 +1,956 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Building Your Own Ngrok Service on CentOS 7 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.\n\n\n\nI.  Why Do We Need Ngrok?\nActually, there are many ngrok services on the web, free or non-free.\nII.  How to Build Own Ngrok Service?\nWell then, how to build one ngrok service?\nA. Prerequisites\nFirst you need a actual or virtual private server that has own IP and have git installed, like vultr or DigitalOcean, and a local machine behind a router with Linux or Windows.\nB. Configuring Go Environment\nSince ngrok is written by go, we need install it. GO can be easily installed via yum or apt if ubuntu or debian. But if you want build a windows client, you need to compile go manually.\nOn the Server，\n### via yum\nsudo yum install go\n### compiling manually ver: 1.7.1\nwget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz\nsudo tar -C /usr/local -xzf go.1.7.1.linux-amd64.tar.gz\n\nWhen finished, we may need configure the bash environment like this\n mkdir ${HOME}/go\n echo 'export GOROOT=/usr/local/go' >> ~/.bashrc\n echo 'export GOPATH=$HOME/go' >> ~/.bashrc\n echo 'export PATH=$PATH:$GOROOT/bin' >> ~/.bashrc\n source $HOME/.bashrc\n\nC. Getting Ngrok\nOn the server,\ngit clone https://github.com/inconshreveable/ngrok.git\n\nD. Compiling Ngrok\na. setting up environment variable\nexport NGROK_DOMAN=\"your.domain.tld\"\n\nb. generating a self-signed ssl certificate\ncd ngrok\nopenssl genrsa -out rootCA.key 4096\nopenssl req -x509 -new -nodes -key rootCA.key -subj \"/CN=$NGROK_DOMAIN\" -days 50000 -out rootCA.pem\nopenssl genrsa -out device.key 4096\nopenssl req -new -key -device.key -subj \"/CN=$NGROK_DOMAIN\" -out device.csr\nopenssl x509 -req -in device.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -out device.crt -days 5000\ncp rootCA.pem assets/client/tls/ngrokroot.crt\ncp device.crt assets/server/tls/snakeoil.crt\ncp device.key assets/server/tls/snakeoil.key\n\nc. building server and client\nmake release-server release-client\n\nd. ngrok service\nCreating a systemd service file named ngrok.service:\n[Unit]\nDescription=ngrok server service\nAfter=syslog.target network.target auditd.service\n\n[Service]\nType=simple\nUser=root\n\nExecStart=/path/to/ngrok/bin/ngrokd -domain=your.domain.tld -httpAddr=:8000 -httpsAddr=:4443\n\nKillMode=process\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n\nCopy ngrok.service to /usr/lib/systemd/system, enable and start ngrok service\nsudo cp ngrok.service /usr/lib/systemd/system\nsudo systemctl enable ngrok.service\n### if firewall-cmd is enabled\nsudo firewall-cmd --permanent --add-port=8000/tcp\nsudo firewall-cmd --permanent --add-port=4443/tcp\nsudo firewall-cmd --reload\nsudo systemctl start ngrok.service\n\nIII.  Comments\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2016-09-27T16:56:55+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2016-09-27T16:56:55+08:00","description":"What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.","headline":"Building Your Own Ngrok Service on CentOS 7","image":["ngrok.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/","keywords":"ssh, ngrok, Vultr","thumbnailUrl":"ngrok.png"}</script>
+    <meta name="description" content="What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.">
+<meta name="keywords" content="ssh,ngrok,Vultr">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Building Your Own Ngrok Service on CentOS 7">
+<meta property="og:url" content="https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.714Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Building Your Own Ngrok Service on CentOS 7">
+<meta name="twitter:description" content="What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/ngrok.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/ngrok.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Building Your Own Ngrok Service on CentOS 7
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2016-09-27T16:56:55+08:00">
+	
+		    9月 27, 2016
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>What is ngrok? Ngrok is a reverse proxy tool which can establish a secure tunnel between local machine and the common service.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#I-Why-Do-We-Need-Ngrok"><span class="toc-text">I.  Why Do We Need Ngrok?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#II-How-to-Build-Own-Ngrok-Service"><span class="toc-text">II.  How to Build Own Ngrok Service?</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#A-Prerequisites"><span class="toc-text">A. Prerequisites</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#B-Configuring-Go-Environment"><span class="toc-text">B. Configuring Go Environment</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#C-Getting-Ngrok"><span class="toc-text">C. Getting Ngrok</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#D-Compiling-Ngrok"><span class="toc-text">D. Compiling Ngrok</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#a-setting-up-environment-variable"><span class="toc-text">a. setting up environment variable</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#b-generating-a-self-signed-ssl-certificate"><span class="toc-text">b. generating a self-signed ssl certificate</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#c-building-server-and-client"><span class="toc-text">c. building server and client</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#d-ngrok-service"><span class="toc-text">d. ngrok service</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#III-Comments"><span class="toc-text">III.  Comments</span></a></li></ol>
+<h2 id="I-Why-Do-We-Need-Ngrok">I.  Why Do We Need Ngrok?</h2>
+<p>Actually, there are many ngrok services on the web, free or non-free.</p>
+<h2 id="II-How-to-Build-Own-Ngrok-Service">II.  How to Build Own Ngrok Service?</h2>
+<p>Well then, how to build one ngrok service?</p>
+<h3 id="A-Prerequisites">A. Prerequisites</h3>
+<p>First you need a actual or virtual private server that has own IP and have <strong>git</strong> installed, like <a href="http://www.vultr.com/?ref=6840862" target="_blank" rel="noopener">vultr</a> or <a href="https://www.digitalocean.com/?refcode=3ffe1cd51c0d" target="_blank" rel="noopener">DigitalOcean</a>, and a local machine behind a router with Linux or Windows.</p>
+<h3 id="B-Configuring-Go-Environment">B. Configuring Go Environment</h3>
+<p>Since ngrok is written by go, we need install it. GO can be easily installed via yum or apt if ubuntu or debian. But if you want build a windows client, you need to compile go manually.<br>
+On the Server，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### via yum
+sudo yum install go
+### compiling manually ver: 1.7.1
+wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go.1.7.1.linux-amd64.tar.gz
+</code></pre>
+<p>When finished, we may need configure the bash environment like this</p>
+<pre class=" language-language-bash"><code class="language-language-bash"> mkdir ${HOME}/go
+ echo 'export GOROOT=/usr/local/go' >> ~/.bashrc
+ echo 'export GOPATH=$HOME/go' >> ~/.bashrc
+ echo 'export PATH=$PATH:$GOROOT/bin' >> ~/.bashrc
+ source $HOME/.bashrc
+</code></pre>
+<h3 id="C-Getting-Ngrok">C. Getting Ngrok</h3>
+<p>On the server,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">git clone https://github.com/inconshreveable/ngrok.git
+</code></pre>
+<h3 id="D-Compiling-Ngrok">D. Compiling Ngrok</h3>
+<h4 id="a-setting-up-environment-variable">a. setting up environment variable</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">export NGROK_DOMAN="your.domain.tld"
+</code></pre>
+<h4 id="b-generating-a-self-signed-ssl-certificate">b. generating a self-signed ssl certificate</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">cd ngrok
+openssl genrsa -out rootCA.key 4096
+openssl req -x509 -new -nodes -key rootCA.key -subj "/CN=$NGROK_DOMAIN" -days 50000 -out rootCA.pem
+openssl genrsa -out device.key 4096
+openssl req -new -key -device.key -subj "/CN=$NGROK_DOMAIN" -out device.csr
+openssl x509 -req -in device.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -out device.crt -days 5000
+cp rootCA.pem assets/client/tls/ngrokroot.crt
+cp device.crt assets/server/tls/snakeoil.crt
+cp device.key assets/server/tls/snakeoil.key
+</code></pre>
+<h4 id="c-building-server-and-client">c. building server and client</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">make release-server release-client
+</code></pre>
+<h4 id="d-ngrok-service">d. ngrok service</h4>
+<p>Creating a systemd service file named <code>ngrok.service</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[Unit]
+Description=ngrok server service
+After=syslog.target network.target auditd.service
+
+[Service]
+Type=simple
+User=root
+
+ExecStart=/path/to/ngrok/bin/ngrokd -domain=your.domain.tld -httpAddr=:8000 -httpsAddr=:4443
+
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>Copy <code>ngrok.service</code> to <code>/usr/lib/systemd/system</code>, enable and start ngrok service</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo cp ngrok.service /usr/lib/systemd/system
+sudo systemctl enable ngrok.service
+### if firewall-cmd is enabled
+sudo firewall-cmd --permanent --add-port=8000/tcp
+sudo firewall-cmd --permanent --add-port=4443/tcp
+sudo firewall-cmd --reload
+sudo systemctl start ngrok.service
+</code></pre>
+<h2 id="III-Comments">III.  Comments</h2>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Vultr/">Vultr</a> <a class="tag tag--primary tag--small t-link" href="/tags/ngrok/">ngrok</a> <a class="tag tag--primary tag--small t-link" href="/tags/ssh/">ssh</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Setup-Proxy-for-Fedora-Package-Manager-DNF/"
+                    data-tooltip="Setup Proxy for Fedora Package Manager - DNF"
+                    aria-label="上一篇: Setup Proxy for Fedora Package Manager - DNF"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Frequently-Used-Apps-Under-MacOS/"
+                    data-tooltip="Frequently Used Apps Under MacOS"
+                    aria-label="下一篇: Frequently Used Apps Under MacOS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Setup-Proxy-for-Fedora-Package-Manager-DNF/"
+                    data-tooltip="Setup Proxy for Fedora Package Manager - DNF"
+                    aria-label="上一篇: Setup Proxy for Fedora Package Manager - DNF"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Frequently-Used-Apps-Under-MacOS/"
+                    data-tooltip="Frequently Used Apps Under MacOS"
+                    aria-label="下一篇: Frequently Used Apps Under MacOS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/';
+              
+            this.page.identifier = '2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

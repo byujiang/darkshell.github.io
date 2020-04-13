@@ -1,0 +1,1144 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Redis 基本操作入门 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Redis 是一个开源的、轻量级的、高性能的、基于 键 - 值 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 Redis 的基本使用方法, 是 《Redis 入门指南 第 2 版》的读书笔记。 .to.be.continued.\n\n\n\nRedis 简介\n开始使用 Redis\nRedis 类型与命令\nRedis 命令不区分 大小写 。主要类型有  字符串 、 散列 、 列表 、 集合 、 有序集合  等。 keys 会遍历所有键, 键多时会影响性能。\n基本操作\n\n利用通配符获取键名列表 。bash 中的通配符： ?、*、[]、 转义\n\nkeys pattern\n\n\n判断 key 是否存在。 存在返回 1， 不存在返回 0\n\nexists bar\n(integer) 1\n\n\n删除 keys。一次可以删除多个键, 不支持通配符。\n\ndel key [key ...]\n\n\n获取键类型。可能的返回值有 string、hash、list、set、zset。\n\ntype key\n\n字符串类型 string\nstring 是 Redis 中最基本的数据类型，可以存储任何形式的字符串， 目前允许的最大容量是 512 MB。\n0. 键名规则 。  对象类型: 对象 ID: 对象属性， 多个单词用 . 来分隔。键名要有意义.\n\n赋值与取值。 EX|PX 设置过期时间，分别为秒和微秒数， NX 表示只有在 key 不存在时创建 key，XX 表示只有在 key 存在时赋值\n\nset key value [[EX seconds]|[PX milliseconds]] [NX|XX]\nget key\n\n\n键值递增递减。存储的 string 为整数形式时，incr 命令可以让键值加 1，返回增加后的值。 不存在时，会默认为 0，返回 1。不是整数时，会报错。incrby 则会增加 incremnt。 decr 和 decreby 则正好相反。\n\n##\nincr key\nincrby key increment\n##\ndecr key\ndecrby key decrement\n\n\n键值增加指定浮点数。 与 incrby 类似， increment 可正可负。\n\nincrebyfloat key increment\n\n\n键值尾部追加值。返回追加后的字符串总长度。不存在则将 key 的值 设为 value。\n\nappend key value\n\n\n获取字符串长度。不存在则返回 0。\n\nstrlen key\n\n\n同时设置 / 获取多个键值。\n\n### 获取\nMGET key [key ...]\n### 赋值\nMSET key value [key value ..]\n\n\n位操作。\n\n### get bit\ngetbit key offset\n### set bit\nsetbit key offset value\n### bit count\nbitcount key [start] [end]\n### bit operation\nbitop operation destkey key [key ...]\n### bitops\nbitpos key 0|1 [start] [end]\n\n\n位的值为 0 或 1\ngitbit 若超出键值长度或不存在则返回 0\nsetbit 若超出长度则将中间的设为 0，若不存在，则会建立该 key 并将前面的 bit 设为 0\nbitcount 可以获得从 start 到 end 之间 值为 1 的位数\nbitop 可以对多个字符串类的键进行位运算，保存在 destkey 中。 有 and、or、xor、not 四种\nbitposs 可以获取指定范围内键值第一个为 0 或 1 的位置, 从 2.8.7 版本开始引入\n位操作可以非常紧凑地存储 布尔值. 100W 个只占 100KB 多空间.\n\n散列类型 hash\n散列类型是一种 字典结构 , 存储了  字段 (field) 和  字段值  的映射, 字段值只能是  字符串 ,  不能  为其他类型,  不能嵌套 . 其他类型也都  不能  嵌套, 如  集合 、 列表  等.\n散列适合存储对象: 对象类别:ID 可作键名, 属性  作为字段,  属性值  作为字段值. Redis  不要求  所有散列具有相同的结构, 这种结构是  人为约定 的, 如 user:1 可以有 car, house, farm, user:2 可以只有 car, house, 外加 tree.\n\n赋值与取值.\n\nhset key field value\nhget key field\nhmset key field value [field2 value ...]\nhmget key field [field2 ...]\nhgetall key\n\n\nhset 和 hmset 用来给一个或多个字段赋值, 不区分插入和更新. 没有的字段会插入, 返回 1, 已有的会更改, 返回 0. 键不存在时会自动创建.\nhget 和 hmget 用来获取一个或多个字段值.\nhgetall 会返回所有的字段和值.\n\n\n判断字段是否存在. 字段存在, 返回 1, 不存在(甚至键也不存在), 返回 0.\n\nhexists key field\n\n\n字段不存在时赋值 .  只有不存在时 , 存在时不做任何操作. 是  原子操作.\n\nhsetnx key field value\n\n\n增加数字 . 健不存在时会自动创建, 字段不存在会插入, 返回  增值后的字段值.\n\nhincrby key field value\n\n\n删除字段. 可以删除一个或多个字段, 返回删除的字段个数. 键或不存在时返回 0,\n\nhdel key field [field2 ...]\n\n\n只获取字段名或字段值 . hkeys 获取所有  字段 , hvals 获取所有  字段值.\n\nhkeys key\nhvals key\n\n\n获得字段数. 返回字段个数.\n\nhlen key\n\n列表类型 list\n列表可以存储一个 有序的  字符串列表, 类似于 C 中的双向链表, 内部也是 C 中的双向链表实现的. 首尾插入元素复杂度为 O(1), 获取元素越接近两端越快, 通过索引访问元素相对比较慢. 一个列表类型键最多只能容纳 $2^32 - 1$ 个元素,  元素值可相同.\n\n向两端增加元素. lpush 从左边依次插入, rpush 从右边依次插入. 返回增加元素后列表的长度, 依次增加 value, value2, …\n\nlpush key value [value2 ...]\nrpush key value [value2 ...]\n\n\n从两端弹出元素. lpop 从左弹出, rpop 从右弹出, 返回弹出的元素.\n\nlpop key\nrpop key\n\nlpush 与 lpop 或 rpush 与 rpop 可当作栈, lpush 与 rpop 或 rpush 与 lpop 可以当作队列.\n3. 获取列表中元素个数. 键不存在时, 返回 0. 时间复杂度为 O(1).\nllen key\n\n\n获取列表片断. 返回从 start 到 stop 之间包含两端的所有元素. 列表起始索引为 0. 支持负索引.\n\nlrange key start stop\n\n\n-1 表示最右一个, -2表示最右第二个.\nstart 比 stop 靠后, 则会返回空列表\nstop 大于实际索引范围, 则会返回 start 到最右边的列表.\n\n\n删除列表中指定的值. 删除列表中前 count 个值为 value 的元素, 返回实际删除的元素个数.\n\nlrem key count value\n\n\ncount &gt; 0, 从左边开始删除前 count 个值为 value 的元素\ncount &lt; 0, 从右边开始删除前 count 个值为 value 的元素\ncount = 0, 删除所有值为 value 的元素\n\n\n获得 / 设置指定位置的元素值. lindex 获得 index 处的元素值, index 可以为负, 返回元素值. lset 设置 index 处的元素值为 value, 成功返回 OK.\n\nlindex key index\nlset key index value\n\n\n只保留列表指定片断. 跟 lrange 类似. 只保留 start 到 end 的元素. 例如保持元素个数在 100 以内, 可以用 ltrim.\n\nltrim key start end\n\n\n向列表中插入元素 . 在列表中值为 pivot 的  前面 (before) 或  之后(after) 插入 value.\n\nlinsert key before|after pivot value\n\n\n元素在列表间转移. 从 source 右边弹出一个元素, 将其插入 destination 的左边, 并返回该元素.\n\nrpoplpush source destination\n\nrpoplpush 可以很方便地在多个队列之间传递数据. 源跟目标相同时, 可以源源不断地将队尾的元素移到队首, 可以实现一个网站监控系统.\n集合类型 set\n集合类型就是数学上的集合, 没有顺序 ,  具有唯一性 ,  列表没有唯一性 . 一个集合可以最多有 2^32 - 1 个字符串. 常用操作有  插入元素 ,  删除元素 ,  判断元素是否存在  等等. 内部实现为 值为空的  散列列表(hash table), 操作的时间复杂度为 O(1).\n\n增加 / 删除元素.\n\nsadd key member [member2 ...]\nsdel key member [member2 ...]\n\n\nsadd 插入一个或多个元素, 键不存在自动创建, 忽略已有元素, 返回插入的元素个数.\nsdel 删除一个或多下元素, 忽略没有的元素, 返回成功删除的元素个数.\n\n\n获得集合中的所有元素或个数. smembers 返回所有元素, scard 返回元素个数.\n\nsmembers key\nscard key\n\n\n判断元素是否存在. 存在返回 1, 不存在返回 0. 时间复杂度为 O(1).\n\nsismember key member\n\n\n集合间运算. sinter - 交集, sunion - 并集, sdiff - 差集, 返回相应的所有元素.\nsdiffstore, sinterstore, sunionstore 则将结果集合保存在 destination 中.\n\nsdiff key1 key2 [key3 ...]\nsdiffstore destination key1 key2 [key3 ...]\nsinter key1 key2 [key3 ...]\nsinterstore destination key1 key2 [key3 ...]\nsunion key1 key2 [key3 ...]\nsunionstore destination key1 key2 [key3 ...]\n\n\nsdiff 先计算 key1 与 key2 的差集, 再将差集与 key3 计算差集, 依次进行.\nsinter 计算所有 keys 的交集.\nsunion 计算所有 keys 的并集.\n\n\n随机获得集合中的元素 . count &gt; 0, 返回  不同的  相应个数的随机元素; count &lt; 0, 则会返回  可能相同的 |count| 个随机元素.\n\nsrandmember key [count]\n\n\n从集合弹出一个元素 . 弹出是  随机的.\n\nspop key\n\n有序集合 zset\nRedis 高阶操作\nRedis 与 Python\nPython 与 Redis 交互的客户端官方推荐 redis-py。 安装很简单；\n## pip\nsudo pip install -U redis-py\n## easy_install\nsudo easy_install redis-py\n\nRedis 持久化\nRedis 集群与运行\nRedis 安全与管理\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-08-31T19:13:50+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-08-31T19:13:50+08:00","description":"Redis 是一个开源的、轻量级的、高性能的、基于 键-值 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 Redis 的基本使用方法, 是 《Redis 入门指南 第2版》的读书笔记。 .to.be.continued.","headline":"Redis 基本操作入门","image":["redis.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Introduction-to-Redis/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Introduction-to-Redis/","keywords":"Linux, SQL, Redis","thumbnailUrl":"redis.png"}</script>
+    <meta name="description" content="Redis 是一个开源的、轻量级的、高性能的、基于 键-值 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 Redis 的基本使用方法, 是 《Redis 入门指南 第2版》的读书笔记。 .to.be.continued.">
+<meta name="keywords" content="Linux,SQL,Redis">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Redis 基本操作入门">
+<meta property="og:url" content="https://amito.me/2018/Introduction-to-Redis/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Redis 是一个开源的、轻量级的、高性能的、基于 键-值 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 Redis 的基本使用方法, 是 《Redis 入门指南 第2版》的读书笔记。 .to.be.continued.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.724Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Redis 基本操作入门">
+<meta name="twitter:description" content="Redis 是一个开源的、轻量级的、高性能的、基于 键-值 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 Redis 的基本使用方法, 是 《Redis 入门指南 第2版》的读书笔记。 .to.be.continued.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Introduction-to-Redis/redis.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Introduction-to-Redis/redis.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Redis 基本操作入门
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-08-31T19:13:50+08:00">
+	
+		    8月 31, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Redis 是一个开源的、轻量级的、高性能的、基于 <code>键 - 值</code> 对的缓存与存储系统，非常适合用来缓存和存储服务和消息队列、任务队列等。 本文主要介绍一下 <code>Redis</code> 的基本使用方法, 是 《Redis 入门指南 第 2 版》的读书笔记。 .to.be.continued.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 简介"><span class="toc-text">Redis 简介</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#开始使用 -Redis"><span class="toc-text">开始使用 Redis</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 类型与命令"><span class="toc-text">Redis 类型与命令</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#基本操作"><span class="toc-text">基本操作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#字符串类型 -string"><span class="toc-text">字符串类型 string</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#散列类型 -hash"><span class="toc-text">散列类型 hash</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#列表类型 -list"><span class="toc-text">列表类型 list</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#集合类型 -set"><span class="toc-text">集合类型 set</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#有序集合 -zset"><span class="toc-text">有序集合 zset</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 高阶操作"><span class="toc-text">Redis 高阶操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 与 -Python"><span class="toc-text">Redis 与 Python</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 持久化"><span class="toc-text">Redis 持久化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 集群与运行"><span class="toc-text">Redis 集群与运行</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Redis- 安全与管理"><span class="toc-text">Redis 安全与管理</span></a></li></ol>
+<h2 id="Redis- 简介">Redis 简介</h2>
+<h2 id="开始使用 -Redis">开始使用 Redis</h2>
+<h2 id="Redis- 类型与命令">Redis 类型与命令</h2>
+<p>Redis 命令不区分 <strong>大小写 </strong>。主要类型有 <code> 字符串 </code>、<code> 散列 </code>、<code> 列表 </code>、<code> 集合 </code>、<code> 有序集合 </code> 等。 <code>keys</code> 会遍历所有键, 键多时会影响性能。</p>
+<h3 id="基本操作">基本操作</h3>
+<ol>
+<li><strong>利用通配符获取键名列表 </strong>。<code>bash</code> 中的通配符： <code>?</code>、<code>*</code>、<code>[]</code>、<code> 转义</code></li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">keys pattern
+</code></pre>
+<ol start="2">
+<li><strong>判断 key 是否存在</strong>。 存在返回 <code>1</code>， 不存在返回 <code>0</code></li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">exists bar
+(integer) 1
+</code></pre>
+<ol start="3">
+<li><strong>删除 keys</strong>。一次可以删除多个键, 不支持通配符。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">del key [key ...]
+</code></pre>
+<ol start="4">
+<li><strong>获取键类型</strong>。可能的返回值有 <code>string</code>、<code>hash</code>、<code>list</code>、<code>set</code>、<code>zset</code>。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">type key
+</code></pre>
+<h3 id="字符串类型 -string">字符串类型 string</h3>
+<p><code>string</code> 是 Redis 中最基本的数据类型，可以存储任何形式的字符串， 目前允许的最大容量是 <code>512 MB</code>。<br>
+0. <strong>键名规则 </strong>。 <code> 对象类型: 对象 ID: 对象属性</code>， 多个单词用 <code>.</code> 来分隔。键名要有意义.</p>
+<ol>
+<li><strong>赋值与取值</strong>。 <code>EX|PX</code> 设置过期时间，分别为秒和微秒数， NX 表示只有在 key 不存在时创建 key，XX 表示只有在 key 存在时赋值</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">set key value [[EX seconds]|[PX milliseconds]] [NX|XX]
+get key
+</code></pre>
+<ol start="2">
+<li><strong>键值递增递减</strong>。存储的 string 为整数形式时，<code>incr</code> 命令可以让键值加 1，返回增加后的值。 不存在时，会默认为 0，返回 1。不是整数时，会报错。<code>incrby</code> 则会增加 <code>incremnt</code>。 <code>decr</code> 和 <code>decreby</code> 则正好相反。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">##
+incr key
+incrby key increment
+##
+decr key
+decrby key decrement
+</code></pre>
+<ol start="3">
+<li><strong>键值增加指定浮点数</strong>。 与 <code>incrby</code> 类似， <code>increment</code> 可正可负。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">increbyfloat key increment
+</code></pre>
+<ol start="4">
+<li><strong>键值尾部追加值</strong>。返回追加后的字符串总长度。不存在则将 <code>key</code> 的值 设为 <code>value</code>。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">append key value
+</code></pre>
+<ol start="5">
+<li><strong>获取字符串长度</strong>。不存在则返回 <code>0</code>。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">strlen key
+</code></pre>
+<ol start="6">
+<li><strong>同时设置 / 获取多个键值</strong>。</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">### 获取
+MGET key [key ...]
+### 赋值
+MSET key value [key value ..]
+</code></pre>
+<ol start="7">
+<li><strong>位操作</strong>。</li>
+</ol>
+<pre><code>### get bit
+getbit key offset
+### set bit
+setbit key offset value
+### bit count
+bitcount key [start] [end]
+### bit operation
+bitop operation destkey key [key ...]
+### bitops
+bitpos key 0|1 [start] [end]
+</code></pre>
+<ul>
+<li>位的值为 <code>0</code> 或 <code>1</code></li>
+<li><code>gitbit</code> 若超出键值长度或不存在则返回 0</li>
+<li><code>setbit</code> 若超出长度则将中间的设为 0，若不存在，则会建立该 key 并将前面的 bit 设为 0</li>
+<li><code>bitcount</code> 可以获得从 start 到 end 之间 值为 1 的位数</li>
+<li><code>bitop</code> 可以对多个字符串类的键进行位运算，保存在 destkey 中。 有 <code>and</code>、<code>or</code>、<code>xor</code>、<code>not</code> 四种</li>
+<li><code>bitposs</code> 可以获取指定范围内键值第一个为 0 或 1 的位置, 从 <code>2.8.7</code> 版本开始引入</li>
+<li>位操作可以非常紧凑地存储 布尔值. 100W 个只占 100KB 多空间.</li>
+</ul>
+<h3 id="散列类型 -hash">散列类型 hash</h3>
+<p>散列类型是一种 <code>字典结构 </code>, 存储了 <code> 字段 (field)</code> 和 <code> 字段值 </code> 的映射, 字段值只能是 <code> 字符串 </code>, <strong> 不能 </strong> 为其他类型, <strong> 不能嵌套 </strong>. 其他类型也都 <strong> 不能 </strong> 嵌套, 如 <code> 集合 </code>、<code> 列表 </code> 等.</p>
+<p>散列适合存储对象: <code>对象类别:ID</code> 可作键名, <code>属性 </code> 作为字段, <code> 属性值 </code> 作为字段值. Redis <strong> 不要求 </strong> 所有散列具有相同的结构, 这种结构是 <strong> 人为约定</strong> 的, 如 <code>user:1</code> 可以有 <code>car</code>, <code>house</code>, <code>farm</code>, <code>user:2</code> 可以只有 <code>car</code>, <code>house</code>, 外加 <code>tree</code>.</p>
+<ol>
+<li><strong>赋值与取值</strong>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hset key field value
+hget key field
+hmset key field value [field2 value ...]
+hmget key field [field2 ...]
+hgetall key
+</code></pre>
+<ul>
+<li><code>hset</code> 和 <code>hmset</code> 用来给一个或多个字段赋值, 不区分插入和更新. 没有的字段会插入, 返回 1, 已有的会更改, 返回 0. 键不存在时会自动创建.</li>
+<li><code>hget</code> 和 <code>hmget</code> 用来获取一个或多个字段值.</li>
+<li><code>hgetall</code> 会返回所有的字段和值.</li>
+</ul>
+<ol start="2">
+<li><strong>判断字段是否存在</strong>. 字段存在, 返回 1, 不存在(甚至键也不存在), 返回 0.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hexists key field
+</code></pre>
+<ol start="3">
+<li><strong>字段不存在时赋值 </strong>. <code> 只有不存在时 </code>, 存在时不做任何操作. 是 <strong> 原子操作</strong>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hsetnx key field value
+</code></pre>
+<ol start="4">
+<li><strong>增加数字 </strong>. 健不存在时会自动创建, 字段不存在会插入, 返回 <strong> 增值后的字段值</strong>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hincrby key field value
+</code></pre>
+<ol start="5">
+<li><strong>删除字段</strong>. 可以删除一个或多个字段, 返回删除的字段个数. 键或不存在时返回 0,</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hdel key field [field2 ...]
+</code></pre>
+<ol start="6">
+<li><strong>只获取字段名或字段值 </strong>. <code>hkeys</code> 获取所有 <code> 字段 </code>, <code>hvals</code> 获取所有 <code> 字段值</code>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hkeys key
+hvals key
+</code></pre>
+<ol start="7">
+<li><strong>获得字段数</strong>. 返回字段个数.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">hlen key
+</code></pre>
+<h3 id="列表类型 -list">列表类型 list</h3>
+<p>列表可以存储一个 <strong>有序的 </strong> 字符串列表, 类似于 C 中的双向链表, 内部也是 C 中的双向链表实现的. 首尾插入元素复杂度为 O(1), 获取元素越接近两端越快, 通过索引访问元素相对比较慢. 一个列表类型键最多只能容纳 $2^32 - 1$ 个元素, <strong> 元素值可相同</strong>.</p>
+<ol>
+<li><strong>向两端增加元素</strong>. <code>lpush</code> 从左边依次插入, <code>rpush</code> 从右边依次插入. 返回增加元素后列表的长度, 依次增加 <code>value</code>, <code>value2</code>, …</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">lpush key value [value2 ...]
+rpush key value [value2 ...]
+</code></pre>
+<ol start="2">
+<li><strong>从两端弹出元素</strong>. <code>lpop</code> 从左弹出, <code>rpop</code> 从右弹出, 返回弹出的元素.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">lpop key
+rpop key
+</code></pre>
+<p><code>lpush</code> 与 <code>lpop</code> 或 <code>rpush</code> 与 <code>rpop</code> 可当作栈, <code>lpush</code> 与 <code>rpop</code> 或 <code>rpush</code> 与 <code>lpop</code> 可以当作队列.<br>
+3. <strong>获取列表中元素个数</strong>. 键不存在时, 返回 0. 时间复杂度为 O(1).</p>
+<pre class=" language-language-redis"><code class="language-language-redis">llen key
+</code></pre>
+<ol start="4">
+<li><strong>获取列表片断</strong>. 返回从 <code>start</code> 到 <code>stop</code> 之间包含两端的所有元素. 列表起始索引为 0. 支持负索引.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">lrange key start stop
+</code></pre>
+<ul>
+<li><code>-1</code> 表示最右一个, <code>-2</code>表示最右第二个.</li>
+<li>start 比 stop 靠后, 则会返回空列表</li>
+<li>stop 大于实际索引范围, 则会返回 start 到最右边的列表.</li>
+</ul>
+<ol start="5">
+<li><strong>删除列表中指定的值</strong>. 删除列表中前 <code>count</code> 个值为 <code>value</code> 的元素, 返回实际删除的元素个数.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">lrem key count value
+</code></pre>
+<ul>
+<li><code>count</code> &gt; 0, 从左边开始删除前 count 个值为 <code>value</code> 的元素</li>
+<li><code>count</code> &lt; 0, 从右边开始删除前 count 个值为 <code>value</code> 的元素</li>
+<li><code>count</code> = 0, 删除所有值为 <code>value</code> 的元素</li>
+</ul>
+<ol start="6">
+<li><strong>获得 / 设置指定位置的元素值</strong>. <code>lindex</code> 获得 <code>index</code> 处的元素值, <code>index</code> 可以为负, 返回元素值. <code>lset</code> 设置 <code>index</code> 处的元素值为 <code>value</code>, 成功返回 <code>OK</code>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">lindex key index
+lset key index value
+</code></pre>
+<ol start="7">
+<li><strong>只保留列表指定片断</strong>. 跟 <code>lrange</code> 类似. 只保留 <code>start</code> 到 <code>end</code> 的元素. 例如保持元素个数在 100 以内, 可以用 <code>ltrim</code>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">ltrim key start end
+</code></pre>
+<ol start="8">
+<li><strong>向列表中插入元素 </strong>. 在列表中值为 <code>pivot</code> 的 <code> 前面 (before)</code> 或 <code> 之后(after)</code> 插入 <code>value</code>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">linsert key before|after pivot value
+</code></pre>
+<ol start="9">
+<li><strong>元素在列表间转移</strong>. 从 <code>source</code> 右边弹出一个元素, 将其插入 <code>destination</code> 的左边, 并返回该元素.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">rpoplpush source destination
+</code></pre>
+<p><code>rpoplpush</code> 可以很方便地在多个队列之间传递数据. 源跟目标相同时, 可以源源不断地将队尾的元素移到队首, 可以实现一个网站监控系统.</p>
+<h3 id="集合类型 -set">集合类型 set</h3>
+<p>集合类型就是数学上的集合, <strong>没有顺序 </strong>, <strong> 具有唯一性 </strong>, <strong> 列表没有唯一性 </strong>. 一个集合可以最多有 2^32 - 1 个字符串. 常用操作有 <code> 插入元素 </code>, <code> 删除元素 </code>, <code> 判断元素是否存在 </code> 等等. 内部实现为 值为空的 <code> 散列列表(hash table)</code>, 操作的时间复杂度为 O(1).</p>
+<ol>
+<li><strong>增加 / 删除元素</strong>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">sadd key member [member2 ...]
+sdel key member [member2 ...]
+</code></pre>
+<ul>
+<li><code>sadd</code> 插入一个或多个元素, 键不存在自动创建, 忽略已有元素, 返回插入的元素个数.</li>
+<li><code>sdel</code> 删除一个或多下元素, 忽略没有的元素, 返回成功删除的元素个数.</li>
+</ul>
+<ol start="2">
+<li><strong>获得集合中的所有元素或个数</strong>. <code>smembers</code> 返回所有元素, <code>scard</code> 返回元素个数.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">smembers key
+scard key
+</code></pre>
+<ol start="3">
+<li><strong>判断元素是否存在</strong>. 存在返回 1, 不存在返回 0. 时间复杂度为 O(1).</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">sismember key member
+</code></pre>
+<ol start="4">
+<li><strong>集合间运算</strong>. <code>sinter - 交集</code>, <code>sunion - 并集</code>, <code>sdiff - 差集</code>, 返回相应的所有元素.<br>
+<code>sdiffstore</code>, <code>sinterstore</code>, <code>sunionstore</code> 则将结果集合保存在 <code>destination</code> 中.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">sdiff key1 key2 [key3 ...]
+sdiffstore destination key1 key2 [key3 ...]
+sinter key1 key2 [key3 ...]
+sinterstore destination key1 key2 [key3 ...]
+sunion key1 key2 [key3 ...]
+sunionstore destination key1 key2 [key3 ...]
+</code></pre>
+<ul>
+<li><code>sdiff</code> 先计算 <code>key1</code> 与 <code>key2</code> 的差集, 再将差集与 <code>key3</code> 计算差集, 依次进行.</li>
+<li><code>sinter</code> 计算所有 keys 的交集.</li>
+<li><code>sunion</code> 计算所有 keys 的并集.</li>
+</ul>
+<ol start="5">
+<li><strong>随机获得集合中的元素 </strong>. <code>count</code> &gt; 0, 返回 <strong> 不同的 </strong> 相应个数的随机元素; <code>count</code> &lt; 0, 则会返回 <strong> 可能相同的</strong> |count| 个随机元素.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">srandmember key [count]
+</code></pre>
+<ol start="6">
+<li><strong>从集合弹出一个元素 </strong>. 弹出是 <strong> 随机的</strong>.</li>
+</ol>
+<pre class=" language-language-redis"><code class="language-language-redis">spop key
+</code></pre>
+<h3 id="有序集合 -zset">有序集合 zset</h3>
+<h2 id="Redis- 高阶操作">Redis 高阶操作</h2>
+<h2 id="Redis- 与 -Python">Redis 与 Python</h2>
+<p>Python 与 Redis 交互的客户端官方推荐 <code>redis-py</code>。 安装很简单；</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## pip
+sudo pip install -U redis-py
+## easy_install
+sudo easy_install redis-py
+</code></pre>
+<h2 id="Redis- 持久化">Redis 持久化</h2>
+<h2 id="Redis- 集群与运行">Redis 集群与运行</h2>
+<h2 id="Redis- 安全与管理">Redis 安全与管理</h2>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/Redis/">Redis</a> <a class="tag tag--primary tag--small t-link" href="/tags/SQL/">SQL</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-JSON-in-Python/"
+                    data-tooltip="在 Python 中使用 JSON 模块处理 JSON 文件"
+                    aria-label="上一篇: 在 Python 中使用 JSON 模块处理 JSON 文件"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Setup-IP-Filters-and-Remove-Ads-in-uTorrent/"
+                    data-tooltip="在 uTorrent 中设置 IP 过滤和去除广告"
+                    aria-label="下一篇: 在 uTorrent 中设置 IP 过滤和去除广告"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Introduction-to-Redis/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-JSON-in-Python/"
+                    data-tooltip="在 Python 中使用 JSON 模块处理 JSON 文件"
+                    aria-label="上一篇: 在 Python 中使用 JSON 模块处理 JSON 文件"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Setup-IP-Filters-and-Remove-Ads-in-uTorrent/"
+                    data-tooltip="在 uTorrent 中设置 IP 过滤和去除广告"
+                    aria-label="下一篇: 在 uTorrent 中设置 IP 过滤和去除广告"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Introduction-to-Redis/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Introduction-to-Redis/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Introduction-to-Redis/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Introduction-to-Redis/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Introduction-to-Redis/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Introduction-to-Redis/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Introduction-to-Redis/';
+              
+            this.page.identifier = '2018/Introduction-to-Redis/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

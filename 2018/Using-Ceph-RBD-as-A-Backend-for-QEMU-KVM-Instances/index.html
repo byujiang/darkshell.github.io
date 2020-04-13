@@ -1,0 +1,1089 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>使用 Ceph 作为 QEMU KVM 虚拟机的存储 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.\n\n\n\nRBD 具有快照的特性, 我们又可以对 RBD 快照进行克隆, 创建一系列的写时复制克隆复本. RBD 的这一特性可以让 Ceph 能够很快地给虚拟机提供块设备, 因为客户端不需要每次在新建虚拟机时都下载整个镜像.\n\nlibvirt 为 OpenStack, CloudStack 等云计算平台提供 Ceph 块设备服务, 云计算平台使用 libvirt 与 QEMU/KVM 等交互, QEMU/KVM 等使用 librbd 与 Ceph RBD 块设备交互.\nCeph RBD 可以作为 VMs 的数据盘和系统盘来使用. 下面我们就来看看如何实现这一目标.\n配置 Ceph\n要配置 Ceph 来配合 libvirt, 可依照如下步骤.\n\n创建一个 Pool. 专门为 libvirt 创建一个 Pool, 并初始化.\n\n[ceph@ceph0 ~]$ ceph osd pool create libvirt-pool 128 128\n[ceph@ceph0 ~]$ ceph osd lspools\n[ceph@ceph0 ~]$ rbd pool init libvirt-pool\n\n\n创建与 Ceph 交互的 User. 这里使用 client.libvirt 作为用户名, libvirt 会使用 libvirt 而不是 client.libvirt 与 Ceph 交互.\n\n[ceph@ceph0 ~]$ ceph auth get-or-create client.libvirt mon 'profile rbd' osd 'profile rbd pool=libvirt-pool'\n[ceph@ceph0 ~]$ ceph auth ls\n\n\n使用 QEMU 新建 images. 比如新建一个 linux-image, 一个 windows-image.\n\n[ceph@ceph0 ~]$ qemu-img create -f rbd rbd:libvirt-pool/linux-image 60G\n[ceph@ceph0 ~]$ qemu-img create -f rbd rbd:libvirt-pool/windows-image 80G\n[ceph@ceph0 ~]$ rbd -p libvirt-pool ls\n\n\n添加如下部分到 /etc/ceph/ceph.conf 中, 以便调试错误. (可选)\n\n[client.libvirt]\nlog file = /var/log/ceph/qemu-guest-$pid.log\nadmin socket = /var/run/ceph/$cluster-$type.$id.$pid.$cctid.asok\n\n配置 VM Managers\nlibvirt 可以直接创建 VMs, 但是使用 virt-manager 可能麦加方便一些.\n\n安装 VM manager.\n\n[ceph@ceph0 ~]$ sudo yum install -y virt-manager\n\n\n准备好 OS images. 这里我们用 CentOS 7.5 和 Windows 7 64 bit 两个系统.\n启动 VMs manager.\n\n[ceph@ceph0 ~]$ virt-manager\n\n接下来我们就开始安装 VMs 了.\n创建 VMs\n创建 Linux VMs\n\n点击 Create New Virtual Machine 按钮.\n命名 虚拟机 的域. 例如 centos.\n导入 OS image.\n配置启动 VM\n要使用 Ceph RBD 作为系统盘, 先不要安装系统,\n要使用 Ceph RBD 作为数据盘, 可以先安装系统.VM.\n\n接下我们先关掉 VM.\n配置 Linux VMS\n\n打开 VM 配置文件.\n\nsudo virsh edit centos\n\n在 &lt;devices&gt; 下应该有一个 &lt;disk&gt; 项.\n\n    /usr/bin/kvm\n    \n        \n        \n        \n        \n    \n\n\n\n如果使用 RBD 作为数据盘, 在其下面加上下面项.  如果用作系统盘, 去掉上面的一项, 再加上下面一项.\n\n\n    \n        \n    \n    \n\n\n将其中的 {monitor-host} 替换成真实的 hosts. 保存并退出.\n3. 配置 Ceph Authentication. 一般 Ceph 集群都设置了登录认证. 我们需要生成一个 secret.\ncat > secret.xml  {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-26T15:23:15+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-26T15:23:15+08:00","description":"Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.","headline":"使用 Ceph 作为 QEMU KVM 虚拟机的存储","image":["kvm.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/","keywords":"Ceph, KVM, QEMU","thumbnailUrl":"kvm.png"}</script>
+    <meta name="description" content="Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.">
+<meta name="keywords" content="Ceph,KVM,QEMU">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="使用 Ceph 作为 QEMU KVM 虚拟机的存储">
+<meta property="og:url" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/ceph-rbd-qemu.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.741Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 Ceph 作为 QEMU KVM 虚拟机的存储">
+<meta name="twitter:description" content="Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.">
+<meta name="twitter:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/ceph-rbd-qemu.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/kvm.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/kvm.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            使用 Ceph 作为 QEMU KVM 虚拟机的存储
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-26T15:23:15+08:00">
+	
+		    9月 26, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph RBD 块设备存储是十分适合作为虚拟化平台的存储后端的, 这也是其最常用的情景之一. 这篇主要介绍如何将 Ceph RBD 作为 QEMU 等的存储端.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -Ceph"><span class="toc-text">配置 Ceph</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -VM-Managers"><span class="toc-text">配置 VM Managers</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#创建 -VMs"><span class="toc-text">创建 VMs</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#创建 -Linux-VMs"><span class="toc-text">创建 Linux VMs</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -Linux-VMS"><span class="toc-text">配置 Linux VMS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -Windows-VMs"><span class="toc-text">配置 Windows VMs</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#挂载到现有 -VMs"><span class="toc-text">挂载到现有 VMs</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#查看 -QEMU- 与 -CEPH- 交互"><span class="toc-text">查看 QEMU 与 CEPH 交互</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -QEMU-KVM"><span class="toc-text">配置 QEMU/KVM</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#基本用法"><span class="toc-text">基本用法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#创建 -images"><span class="toc-text">创建 images</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#调整 -images- 大小"><span class="toc-text">调整 images 大小</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取 -image- 信息"><span class="toc-text">获取 image 信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#运行 -VMs"><span class="toc-text">运行 VMs</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#调用 -Discard-Trim"><span class="toc-text">调用 Discard/Trim</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#QEMU-Cache- 选项"><span class="toc-text">QEMU Cache 选项</span></a></li></ol></li></ol>
+<p>RBD 具有快照的特性, 我们又可以对 RBD 快照进行克隆, 创建一系列的写时复制克隆复本. RBD 的这一特性可以让 Ceph 能够很快地给虚拟机提供块设备, 因为客户端不需要每次在新建虚拟机时都下载整个镜像.</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="ceph-rbd-qemu.png" alt=""></div>
+<p><code>libvirt</code> 为 OpenStack, CloudStack 等云计算平台提供 Ceph 块设备服务, 云计算平台使用 <code>libvirt</code> 与 <code>QEMU/KVM</code> 等交互, <code>QEMU/KVM</code> 等使用 <code>librbd</code> 与 Ceph RBD 块设备交互.</p>
+<p>Ceph RBD 可以作为 VMs 的数据盘和系统盘来使用. 下面我们就来看看如何实现这一目标.</p>
+<h2 id="配置 -Ceph">配置 Ceph</h2>
+<p>要配置 Ceph 来配合 <code>libvirt</code>, 可依照如下步骤.</p>
+<ol>
+<li><strong>创建一个 Pool</strong>. 专门为 <code>libvirt</code> 创建一个 Pool, 并初始化.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph osd pool create libvirt-pool 128 128
+[ceph@ceph0 ~]$ ceph osd lspools
+[ceph@ceph0 ~]$ rbd pool init libvirt-pool
+</code></pre>
+<ol start="2">
+<li><strong>创建与 Ceph 交互的 User</strong>. 这里使用 <code>client.libvirt</code> 作为用户名, libvirt 会使用 <code>libvirt</code> 而不是 <code>client.libvirt</code> 与 Ceph 交互.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-or-create client.libvirt mon 'profile rbd' osd 'profile rbd pool=libvirt-pool'
+[ceph@ceph0 ~]$ ceph auth ls
+</code></pre>
+<ol start="3">
+<li><strong>使用 QEMU 新建 images</strong>. 比如新建一个 <code>linux-image</code>, 一个 <code>windows-image</code>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ qemu-img create -f rbd rbd:libvirt-pool/linux-image 60G
+[ceph@ceph0 ~]$ qemu-img create -f rbd rbd:libvirt-pool/windows-image 80G
+[ceph@ceph0 ~]$ rbd -p libvirt-pool ls
+</code></pre>
+<ol start="4">
+<li>添加如下部分到 <code>/etc/ceph/ceph.conf</code> 中, 以便调试错误. (可选)</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[client.libvirt]
+log file = /var/log/ceph/qemu-guest-$pid.log
+admin socket = /var/run/ceph/$cluster-$type.$id.$pid.$cctid.asok
+</code></pre>
+<h2 id="配置 -VM-Managers">配置 VM Managers</h2>
+<p><code>libvirt</code> 可以直接创建 VMs, 但是使用 <code>virt-manager</code> 可能麦加方便一些.</p>
+<ol>
+<li><strong>安装 VM manager</strong>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo yum install -y virt-manager
+</code></pre>
+<ol start="2">
+<li><strong>准备好 OS images</strong>. 这里我们用 <code>CentOS 7.5</code> 和 <code>Windows 7 64 bit</code> 两个系统.</li>
+<li><strong>启动 VMs manager</strong>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ virt-manager
+</code></pre>
+<p>接下来我们就开始安装 VMs 了.</p>
+<h2 id="创建 -VMs">创建 VMs</h2>
+<h3 id="创建 -Linux-VMs">创建 Linux VMs</h3>
+<ol>
+<li>点击 <code>Create New Virtual Machine</code> 按钮.</li>
+<li>命名 虚拟机 的域. 例如 <code>centos</code>.</li>
+<li>导入 OS image.</li>
+<li>配置启动 VM</li>
+<li>要使用 Ceph RBD 作为系统盘, 先不要安装系统,</li>
+<li>要使用 Ceph RBD 作为数据盘, 可以先安装系统.VM.</li>
+</ol>
+<p>接下我们先关掉 VM.</p>
+<h3 id="配置 -Linux-VMS">配置 Linux VMS</h3>
+<ol>
+<li>打开 VM 配置文件.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo virsh edit centos
+</code></pre>
+<p>在 <code>&lt;devices&gt;</code> 下应该有一个 <code>&lt;disk&gt;</code> 项.</p>
+<pre class=" language-language-xml"><code class="language-language-xml"><devices>
+    <emulator>/usr/bin/kvm</emulator>
+    <disk type='file' device='disk'>
+        <driver name='qemu' type='raw'/>
+        <source file='/path/to/image/recent-linux.img'/>
+        <target dev='vda' bus='virtio'/>
+        <address type='drive' controller='0' bus='0' unit='0'/>
+    </disk>
+</devices>
+</code></pre>
+<ol start="2">
+<li>如果使用 RBD 作为数据盘, 在其下面加上下面项.  如果用作系统盘, 去掉上面的一项, 再加上下面一项.</li>
+</ol>
+<pre class=" language-language-xml"><code class="language-language-xml"><disk type='network' device='disk'>
+    <source protocol='rbd' name='libvirt-pool/new-libvirt-image'>
+        <host name='{monitor-host}' port='6789'/>
+    </source>
+    <target dev='vda' bus='virtio'/>
+</disk>
+</code></pre>
+<p>将其中的 <code>{monitor-host}</code> 替换成真实的 hosts. 保存并退出.<br>
+3. 配置 <code>Ceph Authentication</code>. 一般 Ceph 集群都设置了登录认证. 我们需要生成一个 <code>secret</code>.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">cat > secret.xml <<EOF
+<secret ephemeral='no' private='no'>
+        <usage type='ceph'>
+                <name>client.libvirt secret</name>
+        </usage>
+</secret>
+EOF
+</code></pre>
+<ol start="4">
+<li>定义 <code>secret</code>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo virsh secret-define --file secret.xml > uuid.txt
+</code></pre>
+<ol start="5">
+<li>获取 <code>client.libvirt</code> key, 并保存到 <code>client.libvirt.key</code>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-key client.libvirt | sudo tee client.libvirt.key
+</code></pre>
+<ol start="6">
+<li>设置 <code>secret</code> 的 UUID.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo virsh secret-value --secret $(cat uuid.txt) --base64 $(cat client.libvirt.key)
+</code></pre>
+<ol start="7">
+<li>在虚拟机配置里加上认证信息. 在 <code>&lt;disk type='network' device='disk'&gt;</code> 下面加上如下项.</li>
+</ol>
+<pre class=" language-language-xml"><code class="language-language-xml"><auth username='libvirt'>
+     <secret type='ceph' uuid='9ec59067-fdbc-a6c0-03ff-df165c0587b8'/>
+</auth>
+</code></pre>
+<ol start="8">
+<li>开机启动 VM, 就可以使用 rbd 来当作系统盘或数据盘了.</li>
+</ol>
+<h3 id="配置 -Windows-VMs">配置 Windows VMs</h3>
+<p>Windows VM 与 Linux VM 下同的一点是它没有自带 <code>virtio</code> 的驱动, 所以在安装系统时, Windows 并不能识别 rbd 设备. 需要下载 <a href="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso" target="_blank" rel="noopener">virtio-win</a>.<br>
+将下载的镜像挂载到 VM 上, 在选择安装到硬盘界面时, 选择加载驱动, 选择 virtio-win 镜像下的 <code>/viostor/w7/amd64/</code> 文件夹. 加载之后, 就可以识别了. 然后就可以将 Window 安装到 Ceph 的 RBD 上了.</p>
+<p>要是将 RBD 当作数据盘, 可以在安装好系统后, 在 Window 下安装驱动, 这更方便.</p>
+<h3 id="挂载到现有 -VMs">挂载到现有 VMs</h3>
+<p>可以动态将 Volume 挂载到 VMs 上:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cat << EOF > device.xml
+<disk type='network' device='disk'>
+<driver name='qemu' type='raw'/>
+<auth username='vmimages'>
+<secret type='ceph' uuid='9ec59067-fdbc-a6c0-03ff-df165c0587b8'/>
+</auth>
+<source protocol='rbd' name='libvirt-pool/new-libvirt-image'>
+<host name='{monitor-host}' port='6789'/>
+</source>
+<target dev='vdc' bus='virtio'/>
+</disk>
+EOF
+$ virsh attach-device centos device.xml --persistent
+</code></pre>
+<h3 id="查看 -QEMU- 与 -CEPH- 交互">查看 QEMU 与 CEPH 交互</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo virsh qemu-monitor-command --hmp {vm-domain-name} 'info block'
+</code></pre>
+<h2 id="配置 -QEMU-KVM">配置 QEMU/KVM</h2>
+<p>要使 libvirt 能够操作 Ceph RBD, 需要安装 <code>qemu-block-rbd</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo yum install -y qemu-block-rbd
+</code></pre>
+<p>这里简单介绍一个 与 rbd 相关的 <code>qemu-img</code> 的用法.</p>
+<h3 id="基本用法">基本用法</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ qemu-img {command} [options] rbd:{pool-name}/{image-name}[@snapshot-name]:[:option1=value1][:option2=value2...]
+</code></pre>
+<p>例如, 指定 user id 和 conf 文件</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ qemu-img {command} [options] rbd:libvirt-pool/linux:id=libvirt:conf=/etc/ceph/ceph.conf
+</code></pre>
+<h3 id="创建 -images">创建 images</h3>
+<p>我们可以用 <code>qemu-img</code> 来创建 image, 如下所示. <code>rbd</code> 是必须指定的, pool name 和 image name 也是必须的. 格式 <code>-f raw</code> 是最合理的格式. 其他格式也可以, 但可能会引起不必要的又比较麻烦的问题.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### Usage
+$ qemu-img create -f raw rbd:{pool-name}/{image-name} {size}
+### e.g.
+$ qemu-img create -f raw rbd:libvirt-pool/new-image 20G
+</code></pre>
+<h3 id="调整 -images- 大小">调整 images 大小</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### Usage
+$ qemu-img resize rbd:{pool-name}/{image-name} {size}
+### e.g.
+$ qemu-img resize rbd:libvirt-pool/new-image 50G
+$ qemu-img resize rbd:libvirt-pool/new-image +20G
+</code></pre>
+<h3 id="获取 -image- 信息">获取 image 信息</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### Usage
+$ qemu-img info rbd:{pool-name}/{image-name}
+### e.g.
+$ qemu-img info rbd:libvirt-pool/new-image
+</code></pre>
+<h3 id="运行 -VMs">运行 VMs</h3>
+<p>QEMU 可以通过 <code>librbd</code> 直接将 rbd 作为虚拟块设备使用. <code>qemu-img</code> 可以将已经存在的虚拟机镜像转换到 Ceph RBD images. 如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ qemu-img convert -f qcow2 -O raw centos.qcow2 rbd:libvirt-pool/centos
+</code></pre>
+<p>要从转换后的 image 启动一个虚拟机, 运行如下命令:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ qemu -m 1024 -drive format=raw,file=rbd:data/centos,cache=writeback
+</code></pre>
+<p>上面的 <code>cache=writeback</code> 是启用 RBD 的 caching 功能, 可大大提高 VMs 性能…</p>
+<h3 id="调用 -Discard-Trim">调用 Discard/Trim</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ qemu -m 1024 -drive format=raw,file=rbd:libvirt-pool/centos,id=libvirt,if=none -device driver=ide-hd,drive=drive1,discard_granularity=512
+</code></pre>
+<h3 id="QEMU-Cache- 选项">QEMU Cache 选项</h3>
+<ol>
+<li><strong>writeback</strong>:</li>
+</ol>
+<pre><code>rbd_cache = true
+</code></pre>
+<ol start="2">
+<li><strong>writethrough</strong>:</li>
+</ol>
+<pre><code>rbd_cache = true
+rbd_cache_max_dirty = 0
+</code></pre>
+<ol start="3">
+<li><strong>None</strong>:</li>
+</ol>
+<pre><code>rbd_cache = false
+</code></pre>
+<p>QEMU 的 cache 设置会覆掉 Ceph 的设置.</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/KVM/">KVM</a> <a class="tag tag--primary tag--small t-link" href="/tags/QEMU/">QEMU</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Crontab-in-Linux/"
+                    data-tooltip="在 Linux 中使用 Cron 执行定时任务"
+                    aria-label="上一篇: 在 Linux 中使用 Cron 执行定时任务"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Solving-SSH-Too-Many-Authentication-Failures/"
+                    data-tooltip="解决 SSH 连接提示 Too Many Authentication Failures 问题"
+                    aria-label="下一篇: 解决 SSH 连接提示 Too Many Authentication Failures 问题"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Crontab-in-Linux/"
+                    data-tooltip="在 Linux 中使用 Cron 执行定时任务"
+                    aria-label="上一篇: 在 Linux 中使用 Cron 执行定时任务"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Solving-SSH-Too-Many-Authentication-Failures/"
+                    data-tooltip="解决 SSH 连接提示 Too Many Authentication Failures 问题"
+                    aria-label="下一篇: 解决 SSH 连接提示 Too Many Authentication Failures 问题"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/';
+              
+            this.page.identifier = '2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

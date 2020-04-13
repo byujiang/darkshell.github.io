@@ -1,0 +1,1079 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>安装使用 Arch Linux - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Arch Linux 是一款轻量简单的 linux 发行版, 其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的 wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在 vmare 中的安装过程, 以备所需.\n\n\n\n安装 Arch Linux\n制作安装媒介\n从 Arch 镜像下载最新的安装 LiveCD， 并刻录到 U 盘, 在虚拟机中则不需要.\ndd if=/path/to/arch-livecd.iso of=/dev/sdb bs=1M && sync\n\n/dev/sdb 是 U 盘  盘符. 完成后, 可以重新启动电脑从 U 盘启动安装.\n或者使用 grub2 引导 arch livecd：\nmenuentry \"Archlinux x86_64\" {\n\tinsmod part_msdos\n\tinsmod part_gpt\n\tinsmod ext2\n\n\tset root=(hd0,gpt1)\n\tset isofile=/boot/archlinux-2019.01.01-x86_64.iso\n\tset label='ARCH_201901'\n\tset imgdevpath=/dev/sda1\n\tloopback loop $isofile\n\tlinux (loop)/arch/boot/x86_64/vmlinuz archisolabel=$label img_dev=$imgdevpath img_loop=$isofile earlymodules=loop\n\tinitrd (loop)/arch/boot/intel_ucode.img (loop)/arch/boot/amd_ucode.img (loop)/arch/boot/x86_64/archiso.img\n\tboot\n}\n\n新建虚拟机\n我是在虚拟机中安装 arch 的，故先新建一个虚拟机 Arch.vmx, 启动安装. 如果想用 UEFI 模式, 则需要修改 Arch.vmx, 原始文件开始大致如下:\n#!/usr/bin/vmware\n.encoding = \"UTF-8\"\nconfig.version = \"8\"\n\n在 encoding 后加入\nfirmware=\"efi\"\n\n最后大概是这个样子:\n#!/usr/bin/vmware\n.encoding = \"UTF-8\"\nfirmware=\"efi\"\nconfig.version = \"8\"\n\n这样就启用了 UEFI 模式.\n硬盘分区\nUEFI 模式\n需要将硬盘设成 GPT 分区表, 也是 UEFI 所要求的.\ncfdisk /dev/sda\n\n会提示你将硬盘设成 GPT 模式, 按照自己喜好, 划分硬盘分区. 注意, 需要划分出 efi 分区, 格式化成 Fat32 或 Fat16 格式. 如第一分区为 efi 分区\nmkfs.vfat -F32 /dev/sda1\n\n习惯分为四个分区,\n\n/dev/sda1 - boot: ~400M\n/dev/sda2 - root: ~20G\n/dev/sda3 - swap: ~4G\n/dev/sda4 - home: remainings.\n\nBIOS 模式\n和平常的硬盘分区一样. 习惯也是 4 个分区.\n挂载分区.\nmount -t ext4 /dev/sda2 /mnt\nmkdir -p /mnt/boot /mnt/home\nmount -t ext4 /dev/sda1 /mnt/boot\nmount -t ext4 /dev/sda4 /mnt/home\nswapon /dev/sda3\n\n网络连接\nlivecd 在启动时会开启 dhcpd 服务, 如果是 nat 连接方式, 这样会自动获得 ip. 如果是桥接模式, 则可以获取到 ipv6(如果有的话), 需要自己指定 DNS:\necho nameserver 2001:4860:4860::8888 >> /etc/resolv.conf \n\n然后选择合适的 mirror:\nvi /etc/pacman.d/mirrorlist\n\n在真机中, 可以直接获得 ipv6 地址, 自己修改 dns 即可. 如果是静态 ip 或者是 WiFi, 参考  官方文档\n安装系统\n使用 pacstrap 脚本安装 base 和base-devel 等:\npacstrap /mnt/ base base-devel\n\n要安装 gnome 等，加上 gnome xorg xorg-drivers 等等\n$ pacstrap /mnt base base-devel gnome xorg xorg-drivers texlive-most qt5 xorg-apps gnome-extra\n\n配置系统\n生成 fstab 文件:\ngenfstab -p /mnt/ > /mnt/etc/fstab\n\nchroot 进入新系统:\narch-chroot /mnt\n\n设置主机名:\necho Dark>/etc/hostname\n\n设置时区:\nln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime\n\n设置 locale:\nvi /etc/locale.gen\n\n取消所需 locale 的注释, 然后生成 locales:\nlocale-gen\necho LANG=en_US.UTF-8 > /etc/local.conf\n\n终端字体与键盘:\necho -e \"KEYMAP=us\\nFONT=Lat2-Terminus16\" >/etc/vconsole.conf\n\n生成内核:\nmkinitcpio -p linux\n\n用户与密码:\n修改 root 密码:\npasswd\n\n新建普通用户:\nuseradd -G wheel -s /bin/bash -d /home/dark -m -U dark\npasswd dark\n\n开机启动 dhcpd:\nsystemctl enable dhcpd.service\n\n安装 bootloader\nUEFI 模式\n看一下有没有/sys/firmware/efi/efivars, 如果没有则需要激活 efi 模块:\nmodprobe efivarfs\npacman -S grub os-prober efibootmgr\ngrub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=arch_grub --recheck\ngrub-mkconfig -o /boot/grub/grub.cfg\n\nBIOS 模式\npacman -S grub os-prober\ngrub-install --force --boot-directory=/boot --target=i386-pc --recheck /dev/sda\ngrub-mkconfig -o /boot/grub/grub.cfg\n\n安装其他软件包\npacman -Sy vim bash-completion net-tools sudo\n\n卸载分区\n退出 chroot 环境, 并卸载分区, 重启进入新系统:\nexit\numount -R /mnt\nreboot\n\n安装 GUI\n安装 xorg\n在 系统安装时，加上 xorg\n$ pacstrap /mnt base base-devel xorg gnome\n\nInput and mouse\nnot xf86-input-vmmouse\nsudo pacman -Sy xf86-input-libinput xf86-input-mouse xf86-input-synaptics \n\n显卡驱动:\n在 vmware 中, 需要安装xf86-video-vmware,mesa,xorg-twm, xorg-xclock, xterm, dbus:\nsudo pacman -Sy xf86-video-vmware mesa xorg-twm xorg-xclock xterm \nsudo pacman -Sy dbus svga-dri\n\n查看系统显卡:\nlspci|grep VGA\n\nAMD/ATI 的显卡可以安装开源的 xf86-video-ati 或者闭源的catalyst.Nvidia 的显卡可以安装闭源的nvidia,nvidia-340xx 或nvidia-304xx或开源的xf86-video-nouveau. Intel 的显卡可以安装 xf86-video-intel.\n声卡驱动\n声卡一般不需要额外装驱动，只需要安装alas-utils:\nsudo pacman -Sy alas-utils\n\nvmware-tools\n如果是 vmware 中, 需要安装 vmware-tools, 在 vmware 中选择  安装 VMware Tools:\npacman -S linux-headers\nfor x in {0..6}; do mkdir -pv /etc/init.d/rc$x.d; done\nmount /dev/cdrom /mnt\ncd /root\ntar zxf /mnt/VMwareTools*.tar.gz\ncd vmware-tools-distrib\n./vmware-install.pl\n\n安装字体[1]\nsudo pacman -Sy ttf-dejavu wqy-zenhei wqy-microhei\n\n安装 gnome\nsudo pacman -Sy gnome gdm\nsudo pacman -Sy gnome-extra\n\n启用 gdm 和 Network-manager:\nsudo systemctl enable gdm.service\nsudo systemctl enable NetworkManager.service\n\n安装 plasma5(kde5)\n在安装时加上 `plasma kdebase kdegraphics kde-applications kdeutils kdenetwork qt5\nsudo pacman -Sy plasma-workspace plasma-desktop plasma-framework plasma-meta plasma-workspace-wallpapers sddm\nsudo systemctl enable sddm.service\n\n重启完成安装\n重新启动一般就可以进入桌面环境了…o(*≧▽≦)ツ n(≧▽≦)n\n开始使用 Arch Linux\nProblems\n\nmouse not working. install xf86-input-libinput instead of xf86-input-vmmouse.\nGnome-Terminal not working: running localectl set-locale LANG=\"en_US.UTF-8\" may work.\n\n\n\n水水更健康  ╮(￣▽￣\"\")╭\n1.部分参考了Arch Linux 安装指引 ↩\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2015-12-22T03:47:42+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2015-12-22T03:47:42+08:00","description":"Arch Linux 是一款轻量简单的linux发行版,其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在vmare中的安装过程, 以备所需.","headline":"安装使用 Arch Linux","image":["archlinux.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2015/Installing-and-Using-Arch-Linux/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2015/Installing-and-Using-Arch-Linux/","keywords":"Linux, Arch","thumbnailUrl":"archlinux.png"}</script>
+    <meta name="description" content="Arch Linux 是一款轻量简单的linux发行版,其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在vmare中的安装过程, 以备所需.">
+<meta name="keywords" content="Linux,Arch">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="安装使用 Arch Linux">
+<meta property="og:url" content="https://amito.me/2015/Installing-and-Using-Arch-Linux/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Arch Linux 是一款轻量简单的linux发行版,其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在vmare中的安装过程, 以备所需.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.724Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="安装使用 Arch Linux">
+<meta name="twitter:description" content="Arch Linux 是一款轻量简单的linux发行版,其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在vmare中的安装过程, 以备所需.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2015/Installing-and-Using-Arch-Linux/archlinux.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2015/Installing-and-Using-Arch-Linux/archlinux.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            安装使用 Arch Linux
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2015-12-22T03:47:42+08:00">
+	
+		    12月 22, 2015
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Arch Linux 是一款轻量简单的 linux 发行版, 其秉承简洁、优雅、正确和代码最小化的设计宗旨。简洁、可定制度高：对于有系统洁癖的人，或者控制欲极强的人，Arch 绝对是首选.  Arch linux 有着丰富详尽的 wiki, 指导新手如何安装, 但是初次接触, 总是有些地方不明所以. 故记录下在 vmare 中的安装过程, 以备所需.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#安装 -Arch-Linux"><span class="toc-text">安装 Arch Linux</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#制作安装媒介"><span class="toc-text">制作安装媒介</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#新建虚拟机"><span class="toc-text">新建虚拟机</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#硬盘分区"><span class="toc-text">硬盘分区</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#UEFI 模式"><span class="toc-text">UEFI 模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#BIOS 模式"><span class="toc-text">BIOS 模式</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#挂载分区"><span class="toc-text">挂载分区.</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#网络连接"><span class="toc-text">网络连接</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安装系统"><span class="toc-text">安装系统</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置系统"><span class="toc-text">配置系统</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安装 bootloader"><span class="toc-text">安装 bootloader</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#UEFI 模式 -v2"><span class="toc-text">UEFI 模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#BIOS 模式 -v2"><span class="toc-text">BIOS 模式</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安装其他软件包"><span class="toc-text">安装其他软件包</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#卸载分区"><span class="toc-text">卸载分区</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安装 GUI"><span class="toc-text">安装 GUI</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 xorg"><span class="toc-text">安装 xorg</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Input-and-mouse"><span class="toc-text">Input and mouse</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#显卡驱动"><span class="toc-text">显卡驱动:</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#声卡驱动"><span class="toc-text">声卡驱动</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#vmware-tools"><span class="toc-text">vmware-tools</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装字体 -sup-id-fnref-1-a-href-fn-1-rel-footnote-span-class-hint-top-hint-error-hint-medium-hint-rounded-hint-bounce-aria-label- 部分参考了 -Arch-Linux- 安装指引 -https-hyjk2000-github-io-2014-01-23-arch-linux-install-guide-1-span-a-sup"><span class="toc-text">安装字体[1]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 gnome"><span class="toc-text">安装 gnome</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 -plasma5-kde5"><span class="toc-text">安装 plasma5(kde5)</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#重启完成安装"><span class="toc-text">重启完成安装</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#开始使用 -Arch-Linux"><span class="toc-text">开始使用 Arch Linux</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Problems"><span class="toc-text">Problems</span></a></li></ol>
+<h2 id="安装 -Arch-Linux">安装 Arch Linux</h2>
+<h3 id="制作安装媒介">制作安装媒介</h3>
+<p>从 Arch 镜像下载最新的安装 LiveCD， 并刻录到 U 盘, 在虚拟机中则不需要.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">dd if=/path/to/arch-livecd.iso of=/dev/sdb bs=1M && sync
+</code></pre>
+<p><code>/dev/sdb</code> 是 U 盘 <code> 盘符</code>. 完成后, 可以重新启动电脑从 U 盘启动安装.</p>
+<p>或者使用 grub2 引导 arch livecd：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">menuentry "Archlinux x86_64" {
+	insmod part_msdos
+	insmod part_gpt
+	insmod ext2
+
+	set root=(hd0,gpt1)
+	set isofile=/boot/archlinux-2019.01.01-x86_64.iso
+	set label='ARCH_201901'
+	set imgdevpath=/dev/sda1
+	loopback loop $isofile
+	linux (loop)/arch/boot/x86_64/vmlinuz archisolabel=$label img_dev=$imgdevpath img_loop=$isofile earlymodules=loop
+	initrd (loop)/arch/boot/intel_ucode.img (loop)/arch/boot/amd_ucode.img (loop)/arch/boot/x86_64/archiso.img
+	boot
+}
+</code></pre>
+<h3 id="新建虚拟机">新建虚拟机</h3>
+<p>我是在虚拟机中安装 arch 的，故先新建一个虚拟机 Arch.vmx, 启动安装. 如果想用 UEFI 模式, 则需要修改 Arch.vmx, 原始文件开始大致如下:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">#!/usr/bin/vmware
+.encoding = "UTF-8"
+config.version = "8"
+</code></pre>
+<p>在 encoding 后加入</p>
+<pre class=" language-language-bash"><code class="language-language-bash">firmware="efi"
+</code></pre>
+<p>最后大概是这个样子:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">#!/usr/bin/vmware
+.encoding = "UTF-8"
+firmware="efi"
+config.version = "8"
+</code></pre>
+<p>这样就启用了 UEFI 模式.</p>
+<h3 id="硬盘分区">硬盘分区</h3>
+<h4 id="UEFI 模式">UEFI 模式</h4>
+<p>需要将硬盘设成 GPT 分区表, 也是 UEFI 所要求的.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">cfdisk /dev/sda
+</code></pre>
+<p>会提示你将硬盘设成 GPT 模式, 按照自己喜好, 划分硬盘分区. 注意, 需要划分出 efi 分区, 格式化成 Fat32 或 Fat16 格式. 如第一分区为 efi 分区</p>
+<pre class=" language-language-bash"><code class="language-language-bash">mkfs.vfat -F32 /dev/sda1
+</code></pre>
+<p>习惯分为四个分区,</p>
+<ul>
+<li>/dev/sda1 - boot: ~400M</li>
+<li>/dev/sda2 - root: ~20G</li>
+<li>/dev/sda3 - swap: ~4G</li>
+<li>/dev/sda4 - home: remainings.</li>
+</ul>
+<h4 id="BIOS 模式">BIOS 模式</h4>
+<p>和平常的硬盘分区一样. 习惯也是 4 个分区.</p>
+<h3 id="挂载分区">挂载分区.</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">mount -t ext4 /dev/sda2 /mnt
+mkdir -p /mnt/boot /mnt/home
+mount -t ext4 /dev/sda1 /mnt/boot
+mount -t ext4 /dev/sda4 /mnt/home
+swapon /dev/sda3
+</code></pre>
+<h3 id="网络连接">网络连接</h3>
+<p>livecd 在启动时会开启 dhcpd 服务, 如果是 nat 连接方式, 这样会自动获得 ip. 如果是桥接模式, 则可以获取到 ipv6(如果有的话), 需要自己指定 DNS:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">echo nameserver 2001:4860:4860::8888 >> /etc/resolv.conf 
+</code></pre>
+<p>然后选择合适的 mirror:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">vi /etc/pacman.d/mirrorlist
+</code></pre>
+<p>在真机中, 可以直接获得 ipv6 地址, 自己修改 dns 即可. 如果是静态 ip 或者是 WiFi, 参考 <a href="https://wiki.archlinux.org/index.php/Beginners%27_Guide#Establish_an_internet_connection" target="_blank" rel="noopener"> 官方文档</a></p>
+<h3 id="安装系统">安装系统</h3>
+<p>使用 <code>pacstrap</code> 脚本安装 <code>base</code> 和<code>base-devel</code> 等:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">pacstrap /mnt/ base base-devel
+</code></pre>
+<p>要安装 gnome 等，加上 <code>gnome xorg xorg-drivers</code> 等等</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pacstrap /mnt base base-devel gnome xorg xorg-drivers texlive-most qt5 xorg-apps gnome-extra
+</code></pre>
+<h3 id="配置系统">配置系统</h3>
+<p><strong>生成 fstab 文件</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">genfstab -p /mnt/ > /mnt/etc/fstab
+</code></pre>
+<p><strong>chroot 进入新系统</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">arch-chroot /mnt
+</code></pre>
+<p><strong>设置主机名</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">echo Dark>/etc/hostname
+</code></pre>
+<p><strong>设置时区</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+</code></pre>
+<p><strong>设置 locale</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">vi /etc/locale.gen
+</code></pre>
+<p>取消所需 locale 的注释, 然后生成 locales:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">locale-gen
+echo LANG=en_US.UTF-8 > /etc/local.conf
+</code></pre>
+<p><strong>终端字体与键盘</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">echo -e "KEYMAP=us\nFONT=Lat2-Terminus16" >/etc/vconsole.conf
+</code></pre>
+<p><strong>生成内核</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">mkinitcpio -p linux
+</code></pre>
+<p><strong>用户与密码</strong>:</p>
+<p>修改 root 密码:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">passwd
+</code></pre>
+<p>新建普通用户:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">useradd -G wheel -s /bin/bash -d /home/dark -m -U dark
+passwd dark
+</code></pre>
+<p><strong>开机启动 dhcpd</strong>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">systemctl enable dhcpd.service
+</code></pre>
+<h3 id="安装 bootloader">安装 bootloader</h3>
+<h4 id="UEFI 模式 -v2">UEFI 模式</h4>
+<p>看一下有没有<code>/sys/firmware/efi/efivars</code>, 如果没有则需要激活 efi 模块:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">modprobe efivarfs
+pacman -S grub os-prober efibootmgr
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=arch_grub --recheck
+grub-mkconfig -o /boot/grub/grub.cfg
+</code></pre>
+<h4 id="BIOS 模式 -v2">BIOS 模式</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">pacman -S grub os-prober
+grub-install --force --boot-directory=/boot --target=i386-pc --recheck /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
+</code></pre>
+<h3 id="安装其他软件包">安装其他软件包</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">pacman -Sy vim bash-completion net-tools sudo
+</code></pre>
+<h3 id="卸载分区">卸载分区</h3>
+<p>退出 <code>chroot</code> 环境, 并卸载分区, 重启进入新系统:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">exit
+umount -R /mnt
+reboot
+</code></pre>
+<h3 id="安装 GUI">安装 GUI</h3>
+<h4 id="安装 xorg">安装 xorg</h4>
+<p>在 系统安装时，加上 <code>xorg</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pacstrap /mnt base base-devel xorg gnome
+</code></pre>
+<h4 id="Input-and-mouse">Input and mouse</h4>
+<p>not <code>xf86-input-vmmouse</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy xf86-input-libinput xf86-input-mouse xf86-input-synaptics 
+</code></pre>
+<h4 id="显卡驱动">显卡驱动:</h4>
+<p>在 vmware 中, 需要安装<code>xf86-video-vmware,mesa,xorg-twm, xorg-xclock, xterm, dbus</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy xf86-video-vmware mesa xorg-twm xorg-xclock xterm 
+sudo pacman -Sy dbus svga-dri
+</code></pre>
+<p>查看系统显卡:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">lspci|grep VGA
+</code></pre>
+<p>AMD/ATI 的显卡可以安装开源的 <code>xf86-video-ati</code> 或者闭源的<code>catalyst</code>.Nvidia 的显卡可以安装闭源的<code>nvidia</code>,<code>nvidia-340xx</code> 或<code>nvidia-304xx</code>或开源的<code>xf86-video-nouveau</code>. Intel 的显卡可以安装 <code>xf86-video-intel</code>.</p>
+<h4 id="声卡驱动">声卡驱动</h4>
+<p>声卡一般不需要额外装驱动，只需要安装<code>alas-utils</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy alas-utils
+</code></pre>
+<h4 id="vmware-tools">vmware-tools</h4>
+<p>如果是 vmware 中, 需要安装 vmware-tools, 在 vmware 中选择 <code> 安装 VMware Tools</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">pacman -S linux-headers
+for x in {0..6}; do mkdir -pv /etc/init.d/rc$x.d; done
+mount /dev/cdrom /mnt
+cd /root
+tar zxf /mnt/VMwareTools*.tar.gz
+cd vmware-tools-distrib
+./vmware-install.pl
+</code></pre>
+<h4 id="安装字体 -sup-id-fnref-1-a-href-fn-1-rel-footnote-span-class-hint-top-hint-error-hint-medium-hint-rounded-hint-bounce-aria-label- 部分参考了 -Arch-Linux- 安装指引 -https-hyjk2000-github-io-2014-01-23-arch-linux-install-guide-1-span-a-sup">安装字体<sup id="fnref:1"><a href="#fn:1" rel="footnote"><span class="hint--top hint--error hint--medium hint--rounded hint--bounce" aria-label="部分参考了[Arch Linux 安装指引](https://hyjk2000.github.io/2014/01/23/arch-linux-install-guide/)">[1]</span></a></sup></h4>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy ttf-dejavu wqy-zenhei wqy-microhei
+</code></pre>
+<h4 id="安装 gnome">安装 gnome</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy gnome gdm
+sudo pacman -Sy gnome-extra
+</code></pre>
+<p>启用 gdm 和 Network-manager:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo systemctl enable gdm.service
+sudo systemctl enable NetworkManager.service
+</code></pre>
+<h4 id="安装 -plasma5-kde5">安装 plasma5(kde5)</h4>
+<p>在安装时加上 `plasma kdebase kdegraphics kde-applications kdeutils kdenetwork qt5</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo pacman -Sy plasma-workspace plasma-desktop plasma-framework plasma-meta plasma-workspace-wallpapers sddm
+sudo systemctl enable sddm.service
+</code></pre>
+<h3 id="重启完成安装">重启完成安装</h3>
+<p>重新启动一般就可以进入桌面环境了…o(*≧▽≦)ツ n(<em>≧▽≦</em>)n</p>
+<h2 id="开始使用 -Arch-Linux">开始使用 Arch Linux</h2>
+<h2 id="Problems">Problems</h2>
+<ol>
+<li>mouse not working. install <code>xf86-input-libinput</code> instead of <code>xf86-input-vmmouse</code>.</li>
+<li>Gnome-Terminal not working: running <code>localectl set-locale LANG="en_US.UTF-8"</code> may work.</li>
+</ol>
+<hr>
+<hr>
+<p>水水更健康  ╮(￣▽￣"")╭</p>
+<div id="footnotes"><hr><div id="footnotelist"><ol style="list-style: none; padding-left: 0; margin-left: 40px"><li id="fn:1"><span style="display: inline-block; vertical-align: top; padding-right: 10px; margin-left: -40px">1.</span><span style="display: inline-block; vertical-align: top; margin-left: 10px;">部分参考了<a href="https://hyjk2000.github.io/2014/01/23/arch-linux-install-guide/" target="_blank" rel="noopener">Arch Linux 安装指引</a><a href="#fnref:1" rev="footnote"> ↩</a></span></li></ol></div></div><script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Arch/">Arch</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Fix-VMware-12-not-Working-Under-Fedora-23-Problem/"
+                    data-tooltip="Fix VMware 12 not Working Under Fedora 23 Problem"
+                    aria-label="上一篇: Fix VMware 12 not Working Under Fedora 23 Problem"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/An-Simple-Introduction-to-Grub2/"
+                    data-tooltip="An Simple Introduction to Grub2"
+                    aria-label="下一篇: An Simple Introduction to Grub2"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Fix-VMware-12-not-Working-Under-Fedora-23-Problem/"
+                    data-tooltip="Fix VMware 12 not Working Under Fedora 23 Problem"
+                    aria-label="上一篇: Fix VMware 12 not Working Under Fedora 23 Problem"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/An-Simple-Introduction-to-Grub2/"
+                    data-tooltip="An Simple Introduction to Grub2"
+                    aria-label="下一篇: An Simple Introduction to Grub2"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/Installing-and-Using-Arch-Linux/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2015/Installing-and-Using-Arch-Linux/';
+              
+            this.page.identifier = '2015/Installing-and-Using-Arch-Linux/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

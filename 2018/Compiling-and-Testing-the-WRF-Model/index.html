@@ -1,0 +1,988 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Compiling and Testing the WRF Model - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It features two dynamical cores, a data assimilation system, and a software architecture supporting parallel computation and system extensibility. – WRF\n\n\n\nI. Prerequisites\nA. Install perl, mpi, hdf5, netcdf using the package manager\n####### Fedora / CentOS / Redhat #######\n#### Perl\nsudo dnf/yum install perl perl-devel\n#### MPICH2\nsudo dnf/yum install mpich mpich-devel mpich-autoreload\n#### openmpi\nsudo dnf/yum install openmpi openmpi-devel\n#### hdf5 & netcdf\nsudo dnf/yum install hdf5 hdf5-devel hdf5-mpich hdf5-mpich-devel hdf5-openmpi hdf5-openmpi-devel netcdf netcdf-devel\\\n                     netcdf-fortran netcdf-fortran-devel netcdf-fortran-mpich netcdf-fortran-mpich-devel netcdf-fortran-openmpi\\\n                     netcdf-fortran-openmpi-devel netcdf-mpich netcdf-mpich-devel netcdf-openmpi netcdf-openmpi-devel\n###########  ubuntu/debian ##############\n#### Perl\nsudo apt install perl libperl-dev\n#### MPICH2\nsudo apt install mpich2 libmpich2-dev\n#### openmpi\nsudo apt install openmpi-bin openmpi-common libopenmpi-dev\n#### netcdf & netcdf-fortran\nsudo apt install libhdf5-7 libhdf5-dev libhdf5-mpich2-7 libhdf5-mpich2-dev libhdf5-openmpi-7 libhdf5-openmpi-dev\\\n                 libnetcdf-dev libnetcdff5 libnetcdfc7 libhdf5-7 libnetcdfc++4 libcf0 netcdf-bin\n########### Windows / macOS ##############\n### What? You wanna install WRF on Windows or macOS???? Why are you hating yourself???\n\n##### If you want compile wrf with intel compiler, you should compile and install hdf5, netcdf and netcdf-fortran mannually as below.\n\nB. Compiling hdf5 &amp; netcdf manually\n\nhdf5. Download hdf5 and unpack it to hdf5. Current versions are 1.8.20 and 1.10.1, and we choose the latest version.\n\nmodule load mpi/mpich-x86_64\nexport HDF5=/usr/local\n./configure --prefix=$HDF5 --enable-fortran=yes --enable-hl --enable-optimization=high --enable-parallel CFLAGS='-fPIC'\nmake && make check && make install\n\n\nnetcdf and netcdf-fortran. Download netcdf and netcdf-fortran, and unpack them. Current version is 4.6.0 for netcdf  and 4.4.4 for netcdf-fortran till 5/2/2018.\n\ncd netcdf-4.6.0\n#### XXX: If you install hdf5 into a non-standard location, remember to add $HDF5/include to $C_INCLUDE_PATH and $HDF4/lib to $LD_LIBRARY_PATH\nexport NETCDF=/usr/local\n./configure --prefix=$NETCDF --enable-dot --enable-fsync --enable-cdf5 LDFLAGS=\"-L$HDF5/lib\" CPPFLAGS=\"-I$HDF5/include\"\nmake -j4 && make check && make install\ncd ../\ncd netcdf-fortran-4.4.4\n./configure --prefix=/usr/local --enable-dot LDFLAGS=\"-L$HDF5/lib -L$NETCDF/lib\" CPPFLAGS=\"-I$HDF5/include -I$NETCDF/include\"\nake -j4 && make check && make install\n\nII. Compiling WRF\n\nThe latest release of WRF is 3.9.1.1 till now 5/2/2018. Download the WRF source code, and extract it to WRF\nConfigure WRF\n\nmodule load mpi/mpich-x86_64\n#### If you didn't set NETCDF and HDF5 environment variables, set them to where they are installed.\n#export NETCDF=/usr/local\n#export HDF5=/usr/local\nexport WRFIO_NCD_LARGE_FILE_SUPPORT=1\n#### run ./configure\n./configure\n\nAfter run `./configure`, it will let us to choose which option to compile. Here we choose `35`, which `wrf` will use `mpi` and `openmp`.\n\nPlease select from among the following Linux x86_64 options:\n\n  1. (serial)   2. (smpar)   3. (dmpar)   4. (dm+sm)   PGI (pgf90/gcc)\n  5. (serial)   6. (smpar)   7. (dmpar)   8. (dm+sm)   PGI (pgf90/pgcc): SGI MPT\n  9. (serial)  10. (smpar)  11. (dmpar)  12. (dm+sm)   PGI (pgf90/gcc): PGI accelerator\n 13. (serial)  14. (smpar)  15. (dmpar)  16. (dm+sm)   INTEL (ifort/icc)\n                                         17. (dm+sm)   INTEL (ifort/icc): Xeon Phi (MIC architecture)\n 18. (serial)  19. (smpar)  20. (dmpar)  21. (dm+sm)   INTEL (ifort/icc): Xeon (SNB with AVX mods)\n 22. (serial)  23. (smpar)  24. (dmpar)  25. (dm+sm)   INTEL (ifort/icc): SGI MPT\n 26. (serial)  27. (smpar)  28. (dmpar)  29. (dm+sm)   INTEL (ifort/icc): IBM POE\n 30. (serial)               31. (dmpar)                PATHSCALE (pathf90/pathcc)\n 32. (serial)  33. (smpar)  34. (dmpar)  35. (dm+sm)   GNU (gfortran/gcc)\n 36. (serial)  37. (smpar)  38. (dmpar)  39. (dm+sm)   IBM (xlf90_r/cc_r)\n 40. (serial)  41. (smpar)  42. (dmpar)  43. (dm+sm)   PGI (ftn/gcc): Cray XC CLE\n 44. (serial)  45. (smpar)  46. (dmpar)  47. (dm+sm)   CRAY CCE (ftn $(NOOMP)/cc): Cray XE and XC\n 48. (serial)  49. (smpar)  50. (dmpar)  51. (dm+sm)   INTEL (ftn/icc): Cray XC\n 52. (serial)  53. (smpar)  54. (dmpar)  55. (dm+sm)   PGI (pgf90/pgcc)\n 56. (serial)  57. (smpar)  58. (dmpar)  59. (dm+sm)   PGI (pgf90/gcc): -f90=pgf90\n 60. (serial)  61. (smpar)  62. (dmpar)  63. (dm+sm)   PGI (pgf90/pgcc): -f90=pgf90\n 64. (serial)  65. (smpar)  66. (dmpar)  67. (dm+sm)   INTEL (ifort/icc): HSW/BDW\n 68. (serial)  69. (smpar)  70. (dmpar)  71. (dm+sm)   INTEL (ifort/icc): KNL MIC\n 72. (serial)  73. (smpar)  74. (dmpar)  75. (dm+sm)   FUJITSU (frtpx/fccpx): FX10/FX100 SPARC64 IXfx/Xlfx\n#### nesting option: 1=basic just ok\nCompile for nesting? (1=basic, 2=preset moves, 3=vortex following) [default 1]: 1\n......\n#### configure done\n\n\nAfter configure finished, we then can run ./compile wrf to compile WRF. Note that if one choose INTEL compiler with mpi and openmp, one might need to edit configure.wrf by changing -openmp to -qopenmp, or it will fail to compile.\n\n./compile wrf\n./compile em_real\n#./compile em_fire\n#./compile convert_em\n\nWhen compilation is done, you will find `wrf.exe` and other executable files under the `main` directory.\n\nIII. Runnig Test of WRF\nThe test directory is WRF/run, and you can run a test job on a cluster… -_-…\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-02-07T10:20:12+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-02-07T10:20:12+08:00","description":"The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It features two dynamical cores, a data assimilation system, and a software architecture supporting parallel computation and system extensibility. – WRF","headline":"Compiling and Testing the WRF Model","image":["wrf.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/","keywords":"Linux, HPC","thumbnailUrl":"wrf.png"}</script>
+    <meta name="description" content="The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It">
+<meta name="keywords" content="Linux,HPC">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Compiling and Testing the WRF Model">
+<meta property="og:url" content="https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.717Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Compiling and Testing the WRF Model">
+<meta name="twitter:description" content="The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/wrf.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/wrf.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Compiling and Testing the WRF Model
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-02-07T10:20:12+08:00">
+	
+		    2月 07, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/HPC/">HPC</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>The Weather Research and Forecasting (WRF) Model is a next-generation mesoscale numerical weather prediction system designed for both atmospheric research and operational forecasting applications. It features two dynamical cores, a data assimilation system, and a software architecture supporting parallel computation and system extensibility. – <a href="https://www.mmm.ucar.edu/weather-research-and-forecasting-modelhttps://www.mmm.ucar.edu/weather-research-and-forecasting-model" target="_blank" rel="noopener">WRF</a></p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#I-Prerequisites"><span class="toc-text">I. Prerequisites</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#A-Install-perl-mpi-hdf5-netcdf-using-the-package-manager"><span class="toc-text">A. Install perl, mpi, hdf5, netcdf using the package manager</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#B-Compiling-hdf5-netcdf-manually"><span class="toc-text">B. Compiling hdf5 &amp; netcdf manually</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#II-Compiling-WRF"><span class="toc-text">II. Compiling WRF</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#III-Runnig-Test-of-WRF"><span class="toc-text">III. Runnig Test of WRF</span></a></li></ol>
+<h2 id="I-Prerequisites">I. Prerequisites</h2>
+<h3 id="A-Install-perl-mpi-hdf5-netcdf-using-the-package-manager">A. Install <code>perl</code>, <code>mpi</code>, <code>hdf5</code>, <code>netcdf</code> using the package manager</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">####### Fedora / CentOS / Redhat #######
+#### Perl
+sudo dnf/yum install perl perl-devel
+#### MPICH2
+sudo dnf/yum install mpich mpich-devel mpich-autoreload
+#### openmpi
+sudo dnf/yum install openmpi openmpi-devel
+#### hdf5 & netcdf
+sudo dnf/yum install hdf5 hdf5-devel hdf5-mpich hdf5-mpich-devel hdf5-openmpi hdf5-openmpi-devel netcdf netcdf-devel\
+                     netcdf-fortran netcdf-fortran-devel netcdf-fortran-mpich netcdf-fortran-mpich-devel netcdf-fortran-openmpi\
+                     netcdf-fortran-openmpi-devel netcdf-mpich netcdf-mpich-devel netcdf-openmpi netcdf-openmpi-devel
+###########  ubuntu/debian ##############
+#### Perl
+sudo apt install perl libperl-dev
+#### MPICH2
+sudo apt install mpich2 libmpich2-dev
+#### openmpi
+sudo apt install openmpi-bin openmpi-common libopenmpi-dev
+#### netcdf & netcdf-fortran
+sudo apt install libhdf5-7 libhdf5-dev libhdf5-mpich2-7 libhdf5-mpich2-dev libhdf5-openmpi-7 libhdf5-openmpi-dev\
+                 libnetcdf-dev libnetcdff5 libnetcdfc7 libhdf5-7 libnetcdfc++4 libcf0 netcdf-bin
+########### Windows / macOS ##############
+### What? You wanna install WRF on Windows or macOS???? Why are you hating yourself???
+
+##### If you want compile wrf with intel compiler, you should compile and install hdf5, netcdf and netcdf-fortran mannually as below.
+</code></pre>
+<h3 id="B-Compiling-hdf5-netcdf-manually">B. Compiling hdf5 &amp; netcdf manually</h3>
+<ul>
+<li><strong>hdf5</strong>. Download <a href="https://www.hdfgroup.org/downloads/hdf5/source-code" target="_blank" rel="noopener">hdf5</a> and unpack it to <code>hdf5</code>. Current versions are <code>1.8.20</code> and <code>1.10.1</code>, and we choose the latest version.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">module load mpi/mpich-x86_64
+export HDF5=/usr/local
+./configure --prefix=$HDF5 --enable-fortran=yes --enable-hl --enable-optimization=high --enable-parallel CFLAGS='-fPIC'
+make && make check && make install
+</code></pre>
+<ul>
+<li><strong>netcdf</strong> and <strong>netcdf-fortran</strong>. Download <a href="">netcdf</a> and <a href="">netcdf-fortran</a>, and unpack them. Current version is <code>4.6.0</code> for <code>netcdf</code>  and <code>4.4.4</code> for <code>netcdf-fortran</code> till <code>5/2/2018</code>.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">cd netcdf-4.6.0
+#### XXX: If you install hdf5 into a non-standard location, remember to add $HDF5/include to $C_INCLUDE_PATH and $HDF4/lib to $LD_LIBRARY_PATH
+export NETCDF=/usr/local
+./configure --prefix=$NETCDF --enable-dot --enable-fsync --enable-cdf5 LDFLAGS="-L$HDF5/lib" CPPFLAGS="-I$HDF5/include"
+make -j4 && make check && make install
+cd ../
+cd netcdf-fortran-4.4.4
+./configure --prefix=/usr/local --enable-dot LDFLAGS="-L$HDF5/lib -L$NETCDF/lib" CPPFLAGS="-I$HDF5/include -I$NETCDF/include"
+ake -j4 && make check && make install
+</code></pre>
+<h2 id="II-Compiling-WRF">II. Compiling WRF</h2>
+<ol>
+<li>The latest release of WRF is <code>3.9.1.1</code> till now <code>5/2/2018</code>. Download the <a href="http://www2.mmm.ucar.edu/wrf/users/downloads.html" target="_blank" rel="noopener">WRF source code</a>, and extract it to <code>WRF</code></li>
+<li>Configure <code>WRF</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">module load mpi/mpich-x86_64
+#### If you didn't set NETCDF and HDF5 environment variables, set them to where they are installed.
+#export NETCDF=/usr/local
+#export HDF5=/usr/local
+export WRFIO_NCD_LARGE_FILE_SUPPORT=1
+#### run ./configure
+./configure
+</code></pre>
+<pre><code>After run `./configure`, it will let us to choose which option to compile. Here we choose `35`, which `wrf` will use `mpi` and `openmp`.
+</code></pre>
+<pre class=" language-language-bash"><code class="language-language-bash">Please select from among the following Linux x86_64 options:
+
+  1. (serial)   2. (smpar)   3. (dmpar)   4. (dm+sm)   PGI (pgf90/gcc)
+  5. (serial)   6. (smpar)   7. (dmpar)   8. (dm+sm)   PGI (pgf90/pgcc): SGI MPT
+  9. (serial)  10. (smpar)  11. (dmpar)  12. (dm+sm)   PGI (pgf90/gcc): PGI accelerator
+ 13. (serial)  14. (smpar)  15. (dmpar)  16. (dm+sm)   INTEL (ifort/icc)
+                                         17. (dm+sm)   INTEL (ifort/icc): Xeon Phi (MIC architecture)
+ 18. (serial)  19. (smpar)  20. (dmpar)  21. (dm+sm)   INTEL (ifort/icc): Xeon (SNB with AVX mods)
+ 22. (serial)  23. (smpar)  24. (dmpar)  25. (dm+sm)   INTEL (ifort/icc): SGI MPT
+ 26. (serial)  27. (smpar)  28. (dmpar)  29. (dm+sm)   INTEL (ifort/icc): IBM POE
+ 30. (serial)               31. (dmpar)                PATHSCALE (pathf90/pathcc)
+ 32. (serial)  33. (smpar)  34. (dmpar)  35. (dm+sm)   GNU (gfortran/gcc)
+ 36. (serial)  37. (smpar)  38. (dmpar)  39. (dm+sm)   IBM (xlf90_r/cc_r)
+ 40. (serial)  41. (smpar)  42. (dmpar)  43. (dm+sm)   PGI (ftn/gcc): Cray XC CLE
+ 44. (serial)  45. (smpar)  46. (dmpar)  47. (dm+sm)   CRAY CCE (ftn $(NOOMP)/cc): Cray XE and XC
+ 48. (serial)  49. (smpar)  50. (dmpar)  51. (dm+sm)   INTEL (ftn/icc): Cray XC
+ 52. (serial)  53. (smpar)  54. (dmpar)  55. (dm+sm)   PGI (pgf90/pgcc)
+ 56. (serial)  57. (smpar)  58. (dmpar)  59. (dm+sm)   PGI (pgf90/gcc): -f90=pgf90
+ 60. (serial)  61. (smpar)  62. (dmpar)  63. (dm+sm)   PGI (pgf90/pgcc): -f90=pgf90
+ 64. (serial)  65. (smpar)  66. (dmpar)  67. (dm+sm)   INTEL (ifort/icc): HSW/BDW
+ 68. (serial)  69. (smpar)  70. (dmpar)  71. (dm+sm)   INTEL (ifort/icc): KNL MIC
+ 72. (serial)  73. (smpar)  74. (dmpar)  75. (dm+sm)   FUJITSU (frtpx/fccpx): FX10/FX100 SPARC64 IXfx/Xlfx
+#### nesting option: 1=basic just ok
+Compile for nesting? (1=basic, 2=preset moves, 3=vortex following) [default 1]: 1
+......
+#### configure done
+</code></pre>
+<ol start="3">
+<li>After <code>configure</code> finished, we then can run <code>./compile wrf</code> to compile <code>WRF</code>. Note that if one choose INTEL compiler with <code>mpi</code> and <code>openmp</code>, one might need to edit <code>configure.wrf</code> by changing <code>-openmp</code> to <code>-qopenmp</code>, or it will fail to compile.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">./compile wrf
+./compile em_real
+#./compile em_fire
+#./compile convert_em
+</code></pre>
+<pre><code>When compilation is done, you will find `wrf.exe` and other executable files under the `main` directory.
+</code></pre>
+<h2 id="III-Runnig-Test-of-WRF">III. Runnig Test of WRF</h2>
+<p>The test directory is <code>WRF/run</code>, and you can run a test job on a cluster… -_-…</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/HPC/">HPC</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Parallelize-Your-Large-Batches-of-Small-Jobs/"
+                    data-tooltip="Parallelize Your Large Batches of Small Jobs"
+                    aria-label="上一篇: Parallelize Your Large Batches of Small Jobs"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/GDM-Crashes-After-Screen-Blanks-under-Fedora-27/"
+                    data-tooltip="GDM Crashed Everytime Screen Blanks under Fedora 27"
+                    aria-label="下一篇: GDM Crashed Everytime Screen Blanks under Fedora 27"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Parallelize-Your-Large-Batches-of-Small-Jobs/"
+                    data-tooltip="Parallelize Your Large Batches of Small Jobs"
+                    aria-label="上一篇: Parallelize Your Large Batches of Small Jobs"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/GDM-Crashes-After-Screen-Blanks-under-Fedora-27/"
+                    data-tooltip="GDM Crashed Everytime Screen Blanks under Fedora 27"
+                    aria-label="下一篇: GDM Crashed Everytime Screen Blanks under Fedora 27"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/';
+              
+            this.page.identifier = '2018/Compiling-and-Testing-the-WRF-Model/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

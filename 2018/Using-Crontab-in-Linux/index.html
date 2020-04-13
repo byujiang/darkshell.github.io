@@ -1,0 +1,1015 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>在 Linux 中使用 Cron 执行定时任务 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":" 工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。\n\n\n\nCron 是 Unix，Solaris， Linux 等系统下的可以自动在后台执行定时任务的工具，比如在某一天 9 点提醒你开会， 某一天 6 点去给女票买礼物等等， 这是由 cron 守护进程定期执行的。 如果启用了 cron（一般默认启用 ), cron 守护进程  会在系统启动后自动启动， 并按时执行任务。 cron 也能手动启用、关闭、重启等。\n 认识 crontab\nCrontab 是 cron 的任务库文件，它存储了 cron 要执行的计划任务项目。 不同系统下该文件的位置可能不同。\n\nmacOS: /usr/lib/cron/tabs/\nBSD Unix: /var/cron/tabs/\nSolaris, Debian: /var/spool/cron/crontabs/\nRHEL, CentOS, Fedora: /var/spool/cron/\n\ncron 任务是一个包含特定日期，特定时间和要执行的命令的集合, 存储在 crontab 里。一个 crontab 条目如下图所示，指定了在每个月的所有周日凌晨 2 点 36 分 执行 /usr/local/sbin/  下的 backup.sh 脚本。\n\nCrontab 命令 \ncrontab 命令很简单，\n[root@localhost ~]$ crontab [-u username] [-l|-r|-e] [-n |-c] [-s] [-x ]\n\n 各选项含义如下：\n\n-u: 指定 crontab 的用户名, 此选项只能 root 使用 \n-e: 编辑 crontab 文件， 如果没有，会新建一个 \n-l: 打印出 crontab 文件内容，列出计划任务 \n-r: 移出 crontab 文件 \n-n : 设定在 集群中的 host 主机上执行用户 crontabs\n-c: 获取用户在集群上的 crontabs\n-s: selinux 相关内容 \n-x : 开启 debug\n执行 crontab -e 后就会进入 crontab 编辑环境。\n\n# # Example of job definition:\n.---------------- minute (0 - 59)\n|  .------------- hour (0 - 23)\n|  |  .---------- day of month (1 - 31)\n|  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...\n|  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat\n|  |  |  |  |\n*  *  *  *  *   command to be executed\n\n 时间格式为 min hour day_of_month month day_of_week, 每一项都是一定范围的整数或者数组或者范围。 一些辅助的字符有特别的意义。\n\n\n\n 特殊字符 \n 代表含义 \n\n\n\n\n*\n 代表任何可能的值 \n\n\n,\n 代表分隔时段， 0 3,6 * * * command 表示在每天 3:00， 6:00 执行任务 \n\n\n-\n 代表时间范围， 0 10-20 * * * command 表示在每天 10:00 到 20:00 执行任务 \n\n\n/n\n 代表  每隔 n 单位时间  重复一次 \n\n\n\n 下面举几个 Crontab 的使用例子。\nCrontab 例子 \n 备份系统 \n 每天 00:00 准时备份系统 \n0 0 * * * /usr/local/bin/backup.sh\n\n 会议提醒 \n 提醒每周五下午 2:30 开会 \n20 14 * * 5 /path/to/alert.sh\n\n 记录 IP\n 每隔 3 小时记录 IP 并发送到指定邮箱 \n0 */3 * * * echo \"$(date) : $(hostname -I)\" | mutt -s \"your ip\" your_email_address > /dev/null 2>&1\n\nCrontab 使用补充 \n 系统设定 \n 如果你要做的是系统的例行性任务，则可以使用 /etc/crontab, 在里面加入你的定时任务就好。\n[root@localhost ~]$ cat /etc/crontab\nSHELL=/bin/bash                      /path/to/your/log/file 2>&1\n\n 环境变量 \ncron 会在用户 HOME 文件夹下执行命令，默认的环境变量有：\n\nHOME=user-home-directory\nLOGNAME=user-login-id\nPATH=/usr/bin:/usr/sbin\nSHELL=/usr/bin/sh\n要是你想要任务开始时执行 ~/.profile 里的命令， 需要显示地在脚本里执行 source ~/.profile\n\n 安全检测 \n 有可能服务器会被人入侵，植入的木马一般都会以定时任务的形式运行，可以检查 /var/spool/cron/ 有没有问题。\n 周与日 \nday_of_month 与 day_of _week 一般不能同时设定，若同时设定了，系统会在所有符合一个或两个的日期都执行命令。\n 执行关机期间的任务 \n 如果关机有任务没有执行， 开机后 cron 也不会执行过期的任务。想要执行过期任务，可以使用 anacron。 它作为定时会每小时被执行一次， 执行 cron 没有执行的任务。\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-30T10:08:36+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-30T10:08:36+08:00","description":"工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。","headline":"在 Linux 中使用 Cron 执行定时任务","image":["crontab.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Using-Crontab-in-Linux/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Using-Crontab-in-Linux/","keywords":"Linux, Shell","thumbnailUrl":"crontab.png"}</script>
+    <meta name="description" content="工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。">
+<meta name="keywords" content="Linux,Shell">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="在 Linux 中使用 Cron 执行定时任务">
+<meta property="og:url" content="https://amito.me/2018/Using-Crontab-in-Linux/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Using-Crontab-in-Linux/crontab.jpg">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.741Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="在 Linux 中使用 Cron 执行定时任务">
+<meta name="twitter:description" content="工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。">
+<meta name="twitter:image" content="https://amito.me/2018/Using-Crontab-in-Linux/crontab.jpg">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Using-Crontab-in-Linux/crontab.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Using-Crontab-in-Linux/crontab.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            在 Linux 中使用 Cron 执行定时任务
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-30T10:08:36+08:00">
+	
+		    9月 30, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p> 工作中我们常常需要在某些时候执行一些任务，Windows 下有定时任务管理， Linux 下则有 Crontab， 接触过 Linux 的童鞋一定不陌生。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#认识 -crontab"><span class="toc-text"> 认识 crontab</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Crontab- 命令"><span class="toc-text">Crontab 命令 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Crontab- 例子"><span class="toc-text">Crontab 例子 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#备份系统"><span class="toc-text"> 备份系统 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#会议提醒"><span class="toc-text"> 会议提醒 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#记录 -IP"><span class="toc-text"> 记录 IP</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Crontab- 使用补充"><span class="toc-text">Crontab 使用补充 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#系统设定"><span class="toc-text"> 系统设定 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#系统资源"><span class="toc-text"> 系统资源 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#使用限制"><span class="toc-text"> 使用限制 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#关闭邮件通知"><span class="toc-text"> 关闭邮件通知 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#环境变量"><span class="toc-text"> 环境变量 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安全检测"><span class="toc-text"> 安全检测 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#周与日"><span class="toc-text"> 周与日 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#执行关机期间的任务"><span class="toc-text"> 执行关机期间的任务 </span></a></li></ol></li></ol>
+<p>Cron 是 Unix，Solaris， Linux 等系统下的可以自动在后台执行定时任务的工具，比如在某一天 9 点提醒你开会， 某一天 6 点去给女票买礼物等等， 这是由 cron 守护进程定期执行的。 如果启用了 <code>cron</code>（一般默认启用 ), <code>cron 守护进程 </code> 会在系统启动后自动启动， 并按时执行任务。 <code>cron</code> 也能手动启用、关闭、重启等。</p>
+<h2 id="认识 -crontab"> 认识 crontab</h2>
+<p>Crontab 是 cron 的任务库文件，它存储了 cron 要执行的计划任务项目。 不同系统下该文件的位置可能不同。</p>
+<ul>
+<li><strong>macOS</strong>: <code>/usr/lib/cron/tabs/</code></li>
+<li><strong>BSD Unix</strong>: <code>/var/cron/tabs/</code></li>
+<li><strong>Solaris, Debian</strong>: <code>/var/spool/cron/crontabs/</code></li>
+<li><strong>RHEL, CentOS, Fedora</strong>: <code>/var/spool/cron/</code></li>
+</ul>
+<p><code>cron</code> 任务是一个包含特定日期，特定时间和要执行的命令的集合, 存储在 <code>crontab</code> 里。一个 <code>crontab</code> 条目如下图所示，指定了在每个月的所有周日凌晨 2 点 36 分 执行 <code>/usr/local/sbin/</code>  下的 <code>backup.sh</code> 脚本。</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="crontab.jpg" alt=""></div>
+<h2 id="Crontab- 命令">Crontab 命令 </h2>
+<p>crontab 命令很简单，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[root@localhost ~]$ crontab [-u username] [-l|-r|-e] [-n <host>|-c] [-s] [-x <mask>]
+</code></pre>
+<p> 各选项含义如下：</p>
+<ul>
+<li><strong>-u</strong>: 指定 <code>crontab</code> 的用户名, 此选项只能 <code>root</code> 使用 </li>
+<li><strong>-e</strong>: 编辑 <code>crontab</code> 文件， 如果没有，会新建一个 </li>
+<li><strong>-l</strong>: 打印出 <code>crontab</code> 文件内容，列出计划任务 </li>
+<li><strong>-r</strong>: 移出 <code>crontab</code> 文件 </li>
+<li><strong>-n <host></host></strong>: 设定在 集群中的 host 主机上执行用户 crontabs</li>
+<li><strong>-c</strong>: 获取用户在集群上的 crontabs</li>
+<li><strong>-s</strong>: selinux 相关内容 </li>
+<li><strong>-x <mask></mask></strong>: 开启 debug<br>
+执行 <code>crontab -e</code> 后就会进入 <code>crontab</code> 编辑环境。</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash"># # Example of job definition:
+.---------------- minute (0 - 59)
+|  .------------- hour (0 - 23)
+|  |  .---------- day of month (1 - 31)
+|  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+|  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+|  |  |  |  |
+*  *  *  *  *   command to be executed
+</code></pre>
+<p> 时间格式为 <code>min hour day_of_month month day_of_week</code>, 每一项都是一定范围的整数或者数组或者范围。 一些辅助的字符有特别的意义。</p>
+<table>
+<thead>
+<tr>
+<th> 特殊字符 </th>
+<th> 代表含义 </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>*</td>
+<td> 代表任何可能的值 </td>
+</tr>
+<tr>
+<td>,</td>
+<td> 代表分隔时段， <code>0 3,6 * * * command</code> 表示在每天 3:00， 6:00 执行任务 </td>
+</tr>
+<tr>
+<td>-</td>
+<td> 代表时间范围， <code>0 10-20 * * * command</code> 表示在每天 10:00 到 20:00 执行任务 </td>
+</tr>
+<tr>
+<td>/n</td>
+<td> 代表 <code> 每隔 n 单位时间 </code> 重复一次 </td>
+</tr>
+</tbody>
+</table>
+<p> 下面举几个 Crontab 的使用例子。</p>
+<h2 id="Crontab- 例子">Crontab 例子 </h2>
+<h3 id="备份系统"> 备份系统 </h3>
+<p> 每天 00:00 准时备份系统 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">0 0 * * * /usr/local/bin/backup.sh
+</code></pre>
+<h3 id="会议提醒"> 会议提醒 </h3>
+<p> 提醒每周五下午 2:30 开会 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">20 14 * * 5 /path/to/alert.sh
+</code></pre>
+<h3 id="记录 -IP"> 记录 IP</h3>
+<p> 每隔 3 小时记录 IP 并发送到指定邮箱 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">0 */3 * * * echo "$(date) : $(hostname -I)" | mutt -s "your ip" your_email_address > /dev/null 2>&1
+</code></pre>
+<h2 id="Crontab- 使用补充">Crontab 使用补充 </h2>
+<h3 id="系统设定"> 系统设定 </h3>
+<p> 如果你要做的是系统的例行性任务，则可以使用 <code>/etc/crontab</code>, 在里面加入你的定时任务就好。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[root@localhost ~]$ cat /etc/crontab
+SHELL=/bin/bash                     <== 使用哪种 shell
+PATH=/sbin:/bin:/usr/sbin:/usr/bin  <== 执行程序搜索路径
+MAILTO=root                         <== 若有額外 STDOUT，以 email 将输出发送给谁
+
+# Example of job definition:
+# .---------------- minute (0 - 59)
+# |  .------------- hour (0 - 23)
+# |  |  .---------- day of month (1 - 31)
+# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+# |  |  |  |  |
+# *  *  *  *  * user-name  command to be executed
+</code></pre>
+<p> 可以按照这个格式添加任务， 其中相对于 <code>crontab -e</code>， 多了一个 user-name， 即运行任务的用户。</p>
+<h3 id="系统资源"> 系统资源 </h3>
+<p> 若定期运行的任务很多， 有时候会在某一时候运行很多任务， 系统资源会比较紧张，可以将任务分散开，使得系统负载相对平稳。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[root@localhost ~]$ cat /etc/crontab
+0,5,10,15,20,25,30,35,40,45,50,55 * * * * root  scripts_1.sh
+1,6,11,16,21,26,31,36,41,46,51,56 * * * * root  scripts_2.sh
+2,7,12,17,22,27,32,37,42,47,52,57 * * * * root  scripts_3.sh
+3,8,13,18,23,28,33,38,43,48,53,58 * * * * root  scripts_4.sh
+4,9,14,19,24,29,34,39,44,49,54,59 * * * * root  scripts_5.sh
+</code></pre>
+<h3 id="使用限制"> 使用限制 </h3>
+<p> 如果你的用户名在 <code>/etc/cron.allow</code> 中， 那是可以使用 <code>crontab</code> 的，但如果是在 <br>
+<code>/etc/cron.deny</code> 中， 则无法使用并安排定时任务的。 <code>/etc/cron.allow</code> 的优先级高于 <code>/etc/cron.deny</code>。</p>
+<h3 id="关闭邮件通知"> 关闭邮件通知 </h3>
+<p><code>cron</code> 任务默认会在执行一个 cronjob 后发送一封邮件的，如果执行任务勤了，会产生大量的邮件。如果输出不是必要的， 则可以通过在任务结尾加上重定向：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">>/dev/null 2>&1
+</code></pre>
+<p> 或者重定向到一个日志文件：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">> /path/to/your/log/file 2>&1
+</code></pre>
+<h3 id="环境变量"> 环境变量 </h3>
+<p><code>cron</code> 会在用户 <code>HOME</code> 文件夹下执行命令，默认的环境变量有：</p>
+<ul>
+<li><strong>HOME=user-home-directory</strong></li>
+<li><strong>LOGNAME=user-login-id</strong></li>
+<li><strong>PATH=/usr/bin:/usr/sbin</strong></li>
+<li><strong>SHELL=/usr/bin/sh</strong><br>
+要是你想要任务开始时执行 <code>~/.profile</code> 里的命令， 需要显示地在脚本里执行 <code>source ~/.profile</code></li>
+</ul>
+<h3 id="安全检测"> 安全检测 </h3>
+<p> 有可能服务器会被人入侵，植入的木马一般都会以定时任务的形式运行，可以检查 <code>/var/spool/cron/</code> 有没有问题。</p>
+<h3 id="周与日"> 周与日 </h3>
+<p><code>day_of_month</code> 与 <code>day_of _week</code> 一般不能同时设定，若同时设定了，系统会在所有符合一个或两个的日期都执行命令。</p>
+<h3 id="执行关机期间的任务"> 执行关机期间的任务 </h3>
+<p> 如果关机有任务没有执行， 开机后 cron 也不会执行过期的任务。想要执行过期任务，可以使用 <code>anacron</code>。 它作为定时会每小时被执行一次， 执行 cron 没有执行的任务。</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/Shell/">Shell</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    data-tooltip="手动部署一个 Ceph 存储集群"
+                    aria-label="上一篇: 手动部署一个 Ceph 存储集群"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    data-tooltip="使用 Ceph 作为 QEMU KVM 虚拟机的存储"
+                    aria-label="下一篇: 使用 Ceph 作为 QEMU KVM 虚拟机的存储"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    data-tooltip="手动部署一个 Ceph 存储集群"
+                    aria-label="上一篇: 手动部署一个 Ceph 存储集群"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Ceph-RBD-as-A-Backend-for-QEMU-KVM-Instances/"
+                    data-tooltip="使用 Ceph 作为 QEMU KVM 虚拟机的存储"
+                    aria-label="下一篇: 使用 Ceph 作为 QEMU KVM 虚拟机的存储"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Crontab-in-Linux/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Crontab-in-Linux/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Crontab-in-Linux/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Crontab-in-Linux/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Crontab-in-Linux/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Using-Crontab-in-Linux/';
+              
+            this.page.identifier = '2018/Using-Crontab-in-Linux/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

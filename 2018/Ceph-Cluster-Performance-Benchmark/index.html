@@ -1,0 +1,1199 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Ceph 集群的性能测试 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":" 在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。\n\n\n\n 获取基准性能统计数据 \n 硬盘性能基准 \n 最常见的也最简单的测试就是 dd，测试时记得忽略硬盘的 page cache。\n$ dd if=/dev/zero of=test bs=100M count=100 oflag=direct\n\n 如下图所示，这是在本机上的结果，最终给出的 157MB/s 即是硬盘的写入性能。\n\n 在集群上所有的硬盘上进行这一测试， 记录下测试结果。\n 网络性能基准 \n 网络的带宽和延迟也是影响 Cluster 集群性能的重要因素。 iperf 是一个非常好的测试网络性能的工具，它使用了 client-server 连接来测试 TCP 和 UDP 的带宽。\niperf 需要安装在两个以上的节点上， 其中一个运行 server， 其他运行 client。\n[ceph@ceph1 ~]$ iperf -s\n[ceph@ceph0 ~]$ iperf -c ceph1\n\n\n 可以看到，网络的传输带宽为 941 MB/s，网络所能承受的最大吞吐量.\n 有了一些基准数据之后， 就可以进行集群的性能测试了。 在进行测试之前，需要将所有的缓存禁掉。\n$ sudo echo 3|sudo tee /proc/sys/vm/drop_caches && sudo sync\n\n 测试 Ceph 集群存储性能 \nCeph 包含了 rados bench 命令， 目的就是为了测试 RADOS 存储集群的性能。 要测试其性能， 先创建一个测试的存储池， 再进行测试。\n[ceph@cpeh0 ~]$ ceph rbd pool create rbd_bench 100 100\n[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 write--no-cleanup\n\n\n 结果如上图所示， 测试进行了 10s 的写入测试，测试结果给出了集群写入性能的相关指标。读取测试有两种，顺序 seq 和 随机 rand。\n[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 seq\n[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 rand\n\n 可以加上 -t 选项来增加并行读写性能， 或者 -b 选项来改变写入对象的大小。可以同时对不同的 Pools 进行多次测试以观察多个客户端时的性能变化。下面是一个测试样例。\n\n 在测试完成后，可以将所有的测试数据清理掉。\n[ceph@ceph0 ~]$ rados -p rbd_bench cleanup\n\n 测试 Ceph RBD 块设备性能 \n 如果你是在用 Ceph 作为 OpenStack 等云计算平台的存储端，你可能比较关心 RBD 块设备的性能。 Ceph 本身已经包含 rbd 的高性能测试命令 rbd bench，也可以用流行的 I/O 性能测试工具 fio， 其现在也内置了对 RADOS 块设备的支持。\n 使用 RBD 内置性能测试工具 \nrbd bench 提供了一些选项可以指定测试的类型， 读写的大小，同时读写线程数等等， 下面是命令的简单用法。\n$ rbd help bench\nusage: rbd bench [--pool &lt;pool&gt;] [--image &lt;image&gt;] [--io-size &lt;io-size&gt;]\n                 [--io-threads &lt;io-threads&gt;] [--io-total &lt;io-total&gt;]\n                 [--io-pattern &lt;io-pattern&gt;]\n                 [--rw-mix-read &lt;rw-mix-read&gt;] --io-type &lt;io-type&gt;\n\t\t\t\t &lt;image-spec&gt;\n\nSimple benchmark.\n\nPositional arguments\n  &lt;image-spec&gt;         image specification\n                       (example: [&lt;pool-name&gt;/]&lt;image-name&gt;)\n\nOptional arguments\n  -p [--pool] arg    pool name\n  --image arg          image name\n  --io-size arg        IO size (in B/K/M/G/T) [default: 4K]\n  --io-threads arg     ios in flight [default: 16]\n  --io-total arg       total size for IO (in B/K/M/G/T) [default: 1G]\n  --io-pattern arg     IO pattern (rand or seq) [default: seq]\n  --rw-mix-read arg    read proportion in readwrite (&lt;= 100) [default: 50]\n  --io-type arg        IO type (read , write, or readwrite(rw))\n\n\n 创建测试镜像 \n[ceph@ceph0 ~]$ rbd create -p rbd_bench image01 --size 1024\n[ceph@ceph0 ~]$ sudo rbd map image01 -p rbd_bench --name client.admin\n[ceph@ceph0 ~]$ sudo mkfs.ext4 -m0 /dev/rbd/rbd_bench/image01\n[ceph@ceph0 ~]$ sudo mkdir -p /mnt/rbd/rbd0\n[ceph@ceph0 ~]$ sudo mount /dev/rbd/rbd_bench/image01 /mnt/rbd/rbd0\n\n 写入测试 \n\n 顺序写入测试 。 --io-threads 16, --io-pattern seq, --io-type write\n\n[ceph@ceph0 ~]$ rbd bench --io-pattern seq --io-type write --io-threads 16 rbd_bench/image01\nbench  type write io_size 4096 io_threads 16 bytes 1073741824 pattern sequential\nSEC       OPS   OPS/SEC   BYTES/SEC\n  1     19216  18928.78  77532265.12\n  2     33840  16885.47  69162868.74\n  3     49872  16634.56  68135172.10\n  4     64688  15932.72  65260420.77\n  5     79696  15891.25  65090544.94\n  6     94736  15155.24  62075871.22\n  7    108352  14920.02  61112410.18\n  8    123728  14770.92  60501690.27\n  9    140064  15264.19  62522125.05\n 10    156336  15380.00  62996487.97\n 11    171088  15270.11  62546374.77\n 12    183440  15017.32  61510925.55\n 13    198176  14689.54  60168357.84\n 14    212144  14355.43  58799859.19\n 15    226336  13999.74  57342914.85\n 16    235568  12775.66  52329122.65\n 18    238512   8493.36  34788809.90\n 19    240784   6812.79  27905191.13\n 22    240944   3491.69  14301960.19\n 23    241392   1705.06  6983942.13\n 24    247104   1445.77  5921865.13\n 25    248512   1449.25  5936119.55\n 26    250928   1399.53  5732483.13\n 27    255328   2846.57  11659558.50\n 28    258416   3987.74  16333798.18\nelapsed:    29  ops:   262144  ops/sec:  8991.53  bytes/sec: 36829303.18\n\n 写入速度为 36829303.18 B/s ~ 25 MB/s.\n2.  随机写入测试 。--io-threads 16, --io-pattern rand, --io-type write\n[ceph@ceph0 ~]$ rbd bench --io-pattern rand --io-type write --io-threads 16 rbd_bench/image01\nbench  type write io_size 4096 io_threads 16 bytes 1073741824 pattern random\n  SEC       OPS   OPS/SEC   BYTES/SEC\n    1      5984   5899.59  24164734.37\n    2      6912   3369.59  13801824.44\n    3      7712   2575.95  10551096.34\n    4      8544   2118.25  8676341.63\n    5      9376   1854.63  7596545.03\n    6     10384    883.16  3617434.56\n    7     11152    835.78  3423361.20\n    8     12032    845.39  3462697.68\n    9     12720    822.68  3369695.10\n   10     13504    836.29  3425439.24\n   ...    ...         ...   ...\n  366    256832    754.22  3089269.17\n  367    257648    758.82  3108106.35\n  368    258464    784.48  3213250.05\n  369    259200    779.69  3193598.51\n  370    259840    779.38  3192349.72\n  371    260480    730.61  2992574.34\n  372    261376    740.70  3033895.78\n  373    262064    717.12  2937314.62\nelapsed:   392  ops:   262144  ops/sec:   668.29  bytes/sec: 2737297.63\n\n 随机写入速度为 2737297.63 B/s ~ 2.6 MB/s.\n 读取测试 \n\n 顺序读取测试 。--io-pattern seq, --io-type read, --io-threads 16\n\n[ceph@ceph0 ~]$ rbd bench --io-pattern seq --io-type read rbd_bench/image01\nbench  type read io_size 4096 io_threads 16 bytes 1073741824 pattern sequential\n  SEC       OPS   OPS/SEC   BYTES/SEC\n    1     11536  11586.54  47458466.83\n    2     23776  11913.64  48798285.92\n    3     36560  12203.97  49987468.84\n    4     48048  12024.79  49253539.23\n    5     60976  12205.49  49993691.45\n    6     74800  12652.56  51824882.16\n    7     88544  12953.35  53056935.50\n    8    101360  12957.16  53072534.91\n    9    113376  13065.35  53515678.78\n   10    126800  13164.55  53921994.24\n   11    139248  12889.35  52794796.51\n   12    150336  12358.16  50619042.73\n   13    163392  12408.65  50825812.14\n   14    175696  12463.76  51051572.10\n   15    188432  12326.17  50487973.23\n   16    201600  12467.67  51067572.49\n   17    212896  12511.76  51248176.37\n   18    225136  12346.10  50569607.97\n   19    237248  12307.70  50412356.02\n   20    249136  12140.57  49727770.12\n   21    260448  11771.73  48217007.26\nelapsed:    21  ops:   262144  ops/sec: 12396.62  bytes/sec: 50776571.60\n\n 顺序读取速度为 50776571.60 B/s ~ 48.4 MB/s\n2.  随机读取测试 。 --io-threads 16, --io-type read, --io-pattern rand.\n[ceph@ceph0 ~]$ rbd bench --io-pattern rand --io-type read rbd_bench/image01\nbench  type read io_size 4096 io_threads 16 bytes 1073741824 pattern random\n  SEC       OPS   OPS/SEC   BYTES/sec:\n    1     10304  10330.13  42312226.94\n    2     20976  10501.05  43012303.11\n    3     32624  10883.42  44578490.48\n    4     45216  11310.61  46328267.65\n    5     56896  11384.46  46630748.33\n    6     69216  11782.18  48259790.95\n    7     81344  12073.37  49452523.44\n    8     93648  12204.57  49989908.40\n    9    105904  12137.37  49714662.45\n   10    117296  12077.35  49468843.58\n   11    128624  11881.37  48666106.43\n   12    140336  11798.18  48325325.73\n   13    152480  11766.18  48194256.22\n   14    163936  11606.18  47538908.72\n   15    174944  11531.69  47233788.66\n   16    186160  11504.68  47123168.62\n   17    197376  11407.78  46726277.80\n   18    209056  11314.98  46346176.24\n   19    220784  11369.38  46568994.40\n   20    232192  11449.38  46896668.16\n   21    243792  11528.49  47220679.10\n   22    255632  11650.98  47722406.03\nelapsed:    22  ops:   262144  ops/sec: 11611.40  bytes/sec: 47560301.56\n\n 随机读取速度为 47560301.56 B/s ~ 45.4 MB/s\n 读写测试 \n\n 顺序读写测试 。 --io-threads 16, --io-pattern seq, --io-type write\n\n[ceph@cpeh0 ~]$ rbd bench --io-type rw --io-pattern seq rbd_bench/image01\nbench  type readwrite read:write=50:50 io_size 4096 io_threads 16 bytes 1073741824 pattern sequential\n SEC       OPS   OPS/SEC   BYTES/SEC\n   1      8640   8578.63  35138058.68\n   2      9600   4793.53  19634290.32\n   3     10432   3441.30  14095584.16\n   4     11376   2846.52  11659356.30\n   5     12304   2462.48  10086300.14\n   6     13200    912.90  3739220.13\n   7     14096    899.90  3686001.90\n   8     14864    891.02  3649603.24\n   9     15776    878.93  3600091.29\n  10     17664   1073.05  4395223.66\n ...       ...      ...      ...\n 211    241584    769.89  3153454.38\n 212    242176    717.08  2937166.44\n 213    242976    803.49  3291103.50\n 214    243728    765.24  3134441.78\n 215    244272    654.07  2679053.50\n 216    244976    689.42  2823855.15\n 217    245744    742.39  3040834.29\n 218    249152   1232.71  5049184.45\n 219    250624   1282.24  5252041.26\n 220    252224   1641.93  6725329.65\n 221    253872   1747.36  7157203.26\n 222    254000   1637.41  6706848.82\n 223    254112    960.11  3932592.52\n 224    255296    999.13  4092418.19\n 225    256016    776.08  3178824.42\n 226    256976    626.81  2567395.36\n 227    257856    782.45  3204925.96\n 228    258880    963.99  3948515.16\n 229    259584    866.60  3549578.30\n 230    260384    864.59  3541367.22\n 231    261424    881.65  3611231.11\nelapsed:   237  ops:   262144  ops/sec:  1105.89  bytes/sec: 4529705.49\nread_ops: 131275   read_ops/sec:   553.80   read_bytes/sec: 2268360.4\nwrite_ops: 130869   write_ops/sec:   552.09   write_bytes/sec: 2261345.02\n\n 同时读写的性能比较差， 都只有 2 MB/s 的速度。。。\n2.  随机读写测试 。 --io-threads 16, --io-pattern seq, --io-type rw\n[ceph@cpeh0 ~]$ rbd bench --io-type rw --io-pattern rand rbd_bench/image01\nbench  type readwrite read:write=50:50 io_size 4096 io_threads 16 bytes 1073741824 pattern random\n  SEC       OPS   OPS/SEC   BYTES/SEC\n    1      4224   4239.92  17366709.15\n    2      8448   3990.49  16345065.31\n    3      9072   3028.27  12403778.36\n    4      9776   2444.29  10011799.28\n    5     10304   2053.69  8411923.33\n    6     11232   1381.95  5660465.62\n    7     12032    733.81  3005688.85\n    8     12928    770.72  3156880.89\n    9     13696    777.45  3184453.41\n   10     14448    832.78  3411073.28\n  ...       ...       ...         ...\n  271    253872    911.68  3734249.31\n  272    254800    924.61  3787217.39\n  273    255712    926.82  3796260.40\n  274    256704    930.25  3810312.21\n  275    257600    920.41  3769988.70\n  276    258576    934.80  3828938.17\n  277    259472    925.31  3790086.63\n  278    260224    904.01  3702825.06\n  279    260992    858.27  3515475.05\n  280    261920    861.57  3528995.38\nelapsed:   285  ops:   262144  ops/sec:   917.33  bytes/sec: 3757384.15\nread_ops: 131548   read_ops/sec:   460.33   read_bytes/sec: 1885514.72\nwrite_ops: 130596   write_ops/sec:   457.00   write_bytes/sec: 1871869.43\n\n 随机读写的性能也不好， 都在 1.8 MB/s 左右。。。\n 使用 fio 对 RBD 进行测试 \nfio 是一个通用的 I/O 性能测试工具，源码在 http://git.kernel.dk/fio.git。 源码里面带了一个 rbd.fio 的模板文件， 用来测试 RBD 块设备的 4K 随机写入性能。 需要根据 pool 和 image 的名字来修改相应的名字。\n[ceph@ceph0 ~]$ git clone git://git.kernel.dk/fio.git && cd fio\n[ceph@ceph0 ~]$ sudo yum install -y zlib-devel librados librbd-devel librados-devel libaio-devel\n[ceph@ceph0 fio]$ ./configure && make -j 4 && sudo make install\n[ceph@ceph0 fio]$ cat examples/rbd.fio\n[global]\n#logging\n#write_iops_log=write_iops_log\n#write_bw_log=write_bw_log\n#write_lat_log=write_lat_log\nioengine=rbd\nclientname=admin\npool=rbd\nrbdname=fio_test\nrw=randwrite\nbs=4k\n\n[rbd_iodepth32]\niodepth=32\n\n\n 可以看到， fio 给出的结果与之前的结果相近， 在 1.6 MS/s 左右。\n 测试 Ceph 对象网关性能 \n 使用 swift-bench 可以测试 Ceph 对象网关的性能。 通过 pip 直接从源里安装 swift-bench：\n[ceph@ceph0 ~]$ sudo pip install swift-bench\n\n 这部分没有涉及。。。来自 Ceph。。\nshell> sudo radosgw-admin user create --uid='benchmark' --display-name='benchmark'\nshell> sudo radosgw-admin subuser create --uid='benchmark' --subuser=bencmark:swift --access=full\nshell> sudo radosgw-admin key create --subuser=benchmark --key-type=swift\nshell> radosgw-admin user modify --uid=benchmark --max-buckets=0\nshell> cat > /tm/swift.conf < EOF\n[bench]\nauth = http://gateway-node/auth/v1.0\nuser = benchmark:swift\nkey  = guessme\nauth_version = 1.0\nEOF\nshell> swift-bench -c 64 -s 4096 -n 1000 -g 100 /tmp/swift.conf\n\n 使用 IOzone 对 RBD 进行测试 \n…to.be.continued…\nCBT - Ceph 性能测试框架 \nCBT 是 Ceph 官方提供的一个系统化的性能测试工具。 将会在  使用 CBT 来对 Ceph 集群进行性能测试  中介绍。。。\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-24T20:11:11+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-24T20:11:11+08:00","description":"在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。","headline":"Ceph 集群的性能测试","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/","keywords":"Ceph, Linux","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。">
+<meta name="keywords" content="Ceph,Linux">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Ceph 集群的性能测试">
+<meta property="og:url" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/disk-base-dd.png">
+<meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/network-base-iperf.png">
+<meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/rbd-cluster-write.png">
+<meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/rbd-cluster-read.png">
+<meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/rbd-fio-write.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.714Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ceph 集群的性能测试">
+<meta name="twitter:description" content="在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。">
+<meta name="twitter:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/disk-base-dd.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Ceph 集群的性能测试
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-24T20:11:11+08:00">
+	
+		    9月 24, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p> 在 Ceph 集群搭建好后，我们想要知道我们的集群的性能到底怎样， 有没有以最好性能运行。以下几种方法可以粗略地测试集群的性能。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#获取基准性能统计数据"><span class="toc-text"> 获取基准性能统计数据 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#硬盘性能基准"><span class="toc-text"> 硬盘性能基准 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#网络性能基准"><span class="toc-text"> 网络性能基准 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#测试 -Ceph- 集群存储性能"><span class="toc-text"> 测试 Ceph 集群存储性能 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#测试 -Ceph-RBD- 块设备性能"><span class="toc-text"> 测试 Ceph RBD 块设备性能 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#使用 -RBD- 内置性能测试工具"><span class="toc-text"> 使用 RBD 内置性能测试工具 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#创建测试镜像"><span class="toc-text"> 创建测试镜像 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#写入测试"><span class="toc-text"> 写入测试 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#读取测试"><span class="toc-text"> 读取测试 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#读写测试"><span class="toc-text"> 读写测试 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#使用 -fio- 对 -RBD- 进行测试"><span class="toc-text"> 使用 fio 对 RBD 进行测试 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#测试 -Ceph- 对象网关性能"><span class="toc-text"> 测试 Ceph 对象网关性能 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#使用 -IOzone- 对 -RBD- 进行测试"><span class="toc-text"> 使用 IOzone 对 RBD 进行测试 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#CBT-Ceph- 性能测试框架"><span class="toc-text">CBT - Ceph 性能测试框架 </span></a></li></ol>
+<h2 id="获取基准性能统计数据"> 获取基准性能统计数据 </h2>
+<h3 id="硬盘性能基准"> 硬盘性能基准 </h3>
+<p> 最常见的也最简单的测试就是 <code>dd</code>，测试时记得忽略硬盘的 <code>page cache</code>。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ dd if=/dev/zero of=test bs=100M count=100 oflag=direct
+</code></pre>
+<p> 如下图所示，这是在本机上的结果，最终给出的 <code>157MB/s</code> 即是硬盘的写入性能。</p>
+<div class="figure center" style="width:700px;"><img class="fig-img" src="disk-base-dd.png" style="width:700px;height:250px;" alt=""></div>
+<p> 在集群上所有的硬盘上进行这一测试， 记录下测试结果。</p>
+<h3 id="网络性能基准"> 网络性能基准 </h3>
+<p> 网络的带宽和延迟也是影响 Cluster 集群性能的重要因素。 <code>iperf</code> 是一个非常好的测试网络性能的工具，它使用了 <code>client-server</code> 连接来测试 TCP 和 UDP 的带宽。</p>
+<p><code>iperf</code> 需要安装在两个以上的节点上， 其中一个运行 <code>server</code>， 其他运行 <code>client</code>。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph1 ~]$ iperf -s
+[ceph@ceph0 ~]$ iperf -c ceph1
+</code></pre>
+<div class="figure center" style="width:700px;"><img class="fig-img" src="network-base-iperf.png" style="width:700px;height:250px;" alt=""></div>
+<p> 可以看到，网络的传输带宽为 <code>941 MB/s</code>，网络所能承受的最大吞吐量.</p>
+<p> 有了一些基准数据之后， 就可以进行集群的性能测试了。 在进行测试之前，需要将所有的缓存禁掉。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo echo 3|sudo tee /proc/sys/vm/drop_caches && sudo sync
+</code></pre>
+<h2 id="测试 -Ceph- 集群存储性能"> 测试 Ceph 集群存储性能 </h2>
+<p>Ceph 包含了 <code>rados bench</code> 命令， 目的就是为了测试 RADOS 存储集群的性能。 要测试其性能， 先创建一个测试的存储池， 再进行测试。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@cpeh0 ~]$ ceph rbd pool create rbd_bench 100 100
+[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 write--no-cleanup
+</code></pre>
+<div class="figure center" style="width:800px;"><img class="fig-img" src="rbd-cluster-write.png" style="width:800px;height:550px;" alt=""></div>
+<p> 结果如上图所示， 测试进行了 10s 的写入测试，测试结果给出了集群写入性能的相关指标。读取测试有两种，顺序 <code>seq</code> 和 随机 <code>rand</code>。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 seq
+[ceph@ceph0 ~]$ rados bench -p rbd_bench 10 rand
+</code></pre>
+<p> 可以加上 <code>-t</code> 选项来增加并行读写性能， 或者 <code>-b</code> 选项来改变写入对象的大小。可以同时对不同的 Pools 进行多次测试以观察多个客户端时的性能变化。下面是一个测试样例。</p>
+<div class="figure center" style="width:800px;"><img class="fig-img" src="rbd-cluster-read.png" style="width:800px;height:800px;" alt=""></div>
+<p> 在测试完成后，可以将所有的测试数据清理掉。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rados -p rbd_bench cleanup
+</code></pre>
+<h2 id="测试 -Ceph-RBD- 块设备性能"> 测试 Ceph RBD 块设备性能 </h2>
+<p> 如果你是在用 Ceph 作为 OpenStack 等云计算平台的存储端，你可能比较关心 RBD 块设备的性能。 Ceph 本身已经包含 rbd 的高性能测试命令 <code>rbd bench</code>，也可以用流行的 <code>I/O</code> 性能测试工具 <a href="http://git.kernel.dk/?p=fio.git;a=summary" target="_blank" rel="noopener">fio</a>， 其现在也内置了对 RADOS 块设备的支持。</p>
+<h3 id="使用 -RBD- 内置性能测试工具"> 使用 RBD 内置性能测试工具 </h3>
+<p><code>rbd bench</code> 提供了一些选项可以指定测试的类型， 读写的大小，同时读写线程数等等， 下面是命令的简单用法。</p>
+<pre><code>$ rbd help bench
+usage: rbd bench [--pool &lt;pool&gt;] [--image &lt;image&gt;] [--io-size &lt;io-size&gt;]
+                 [--io-threads &lt;io-threads&gt;] [--io-total &lt;io-total&gt;]
+                 [--io-pattern &lt;io-pattern&gt;]
+                 [--rw-mix-read &lt;rw-mix-read&gt;] --io-type &lt;io-type&gt;
+				 &lt;image-spec&gt;
+
+Simple benchmark.
+
+Positional arguments
+  &lt;image-spec&gt;         image specification
+                       (example: [&lt;pool-name&gt;/]&lt;image-name&gt;)
+
+Optional arguments
+  -p [--pool] arg    pool name
+  --image arg          image name
+  --io-size arg        IO size (in B/K/M/G/T) [default: 4K]
+  --io-threads arg     ios in flight [default: 16]
+  --io-total arg       total size for IO (in B/K/M/G/T) [default: 1G]
+  --io-pattern arg     IO pattern (rand or seq) [default: seq]
+  --rw-mix-read arg    read proportion in readwrite (&lt;= 100) [default: 50]
+  --io-type arg        IO type (read , write, or readwrite(rw))
+
+</code></pre>
+<h4 id="创建测试镜像"> 创建测试镜像 </h4>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd create -p rbd_bench image01 --size 1024
+[ceph@ceph0 ~]$ sudo rbd map image01 -p rbd_bench --name client.admin
+[ceph@ceph0 ~]$ sudo mkfs.ext4 -m0 /dev/rbd/rbd_bench/image01
+[ceph@ceph0 ~]$ sudo mkdir -p /mnt/rbd/rbd0
+[ceph@ceph0 ~]$ sudo mount /dev/rbd/rbd_bench/image01 /mnt/rbd/rbd0
+</code></pre>
+<h4 id="写入测试"> 写入测试 </h4>
+<ol>
+<li><strong> 顺序写入测试 </strong>。 <code>--io-threads 16</code>, <code>--io-pattern seq</code>, <code>--io-type write</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd bench --io-pattern seq --io-type write --io-threads 16 rbd_bench/image01
+bench  type write io_size 4096 io_threads 16 bytes 1073741824 pattern sequential
+SEC       OPS   OPS/SEC   BYTES/SEC
+  1     19216  18928.78  77532265.12
+  2     33840  16885.47  69162868.74
+  3     49872  16634.56  68135172.10
+  4     64688  15932.72  65260420.77
+  5     79696  15891.25  65090544.94
+  6     94736  15155.24  62075871.22
+  7    108352  14920.02  61112410.18
+  8    123728  14770.92  60501690.27
+  9    140064  15264.19  62522125.05
+ 10    156336  15380.00  62996487.97
+ 11    171088  15270.11  62546374.77
+ 12    183440  15017.32  61510925.55
+ 13    198176  14689.54  60168357.84
+ 14    212144  14355.43  58799859.19
+ 15    226336  13999.74  57342914.85
+ 16    235568  12775.66  52329122.65
+ 18    238512   8493.36  34788809.90
+ 19    240784   6812.79  27905191.13
+ 22    240944   3491.69  14301960.19
+ 23    241392   1705.06  6983942.13
+ 24    247104   1445.77  5921865.13
+ 25    248512   1449.25  5936119.55
+ 26    250928   1399.53  5732483.13
+ 27    255328   2846.57  11659558.50
+ 28    258416   3987.74  16333798.18
+elapsed:    29  ops:   262144  ops/sec:  8991.53  bytes/sec: 36829303.18
+</code></pre>
+<p> 写入速度为 <code>36829303.18 B/s ~ 25 MB/s</code>.<br>
+2. <strong> 随机写入测试 </strong>。<code>--io-threads 16</code>, <code>--io-pattern rand</code>, <code>--io-type write</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd bench --io-pattern rand --io-type write --io-threads 16 rbd_bench/image01
+bench  type write io_size 4096 io_threads 16 bytes 1073741824 pattern random
+  SEC       OPS   OPS/SEC   BYTES/SEC
+    1      5984   5899.59  24164734.37
+    2      6912   3369.59  13801824.44
+    3      7712   2575.95  10551096.34
+    4      8544   2118.25  8676341.63
+    5      9376   1854.63  7596545.03
+    6     10384    883.16  3617434.56
+    7     11152    835.78  3423361.20
+    8     12032    845.39  3462697.68
+    9     12720    822.68  3369695.10
+   10     13504    836.29  3425439.24
+   ...    ...         ...   ...
+  366    256832    754.22  3089269.17
+  367    257648    758.82  3108106.35
+  368    258464    784.48  3213250.05
+  369    259200    779.69  3193598.51
+  370    259840    779.38  3192349.72
+  371    260480    730.61  2992574.34
+  372    261376    740.70  3033895.78
+  373    262064    717.12  2937314.62
+elapsed:   392  ops:   262144  ops/sec:   668.29  bytes/sec: 2737297.63
+</code></pre>
+<p> 随机写入速度为 <code>2737297.63 B/s ~ 2.6 MB/s</code>.</p>
+<h4 id="读取测试"> 读取测试 </h4>
+<ol>
+<li><strong> 顺序读取测试 </strong>。<code>--io-pattern seq</code>, <code>--io-type read</code>, <code>--io-threads 16</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd bench --io-pattern seq --io-type read rbd_bench/image01
+bench  type read io_size 4096 io_threads 16 bytes 1073741824 pattern sequential
+  SEC       OPS   OPS/SEC   BYTES/SEC
+    1     11536  11586.54  47458466.83
+    2     23776  11913.64  48798285.92
+    3     36560  12203.97  49987468.84
+    4     48048  12024.79  49253539.23
+    5     60976  12205.49  49993691.45
+    6     74800  12652.56  51824882.16
+    7     88544  12953.35  53056935.50
+    8    101360  12957.16  53072534.91
+    9    113376  13065.35  53515678.78
+   10    126800  13164.55  53921994.24
+   11    139248  12889.35  52794796.51
+   12    150336  12358.16  50619042.73
+   13    163392  12408.65  50825812.14
+   14    175696  12463.76  51051572.10
+   15    188432  12326.17  50487973.23
+   16    201600  12467.67  51067572.49
+   17    212896  12511.76  51248176.37
+   18    225136  12346.10  50569607.97
+   19    237248  12307.70  50412356.02
+   20    249136  12140.57  49727770.12
+   21    260448  11771.73  48217007.26
+elapsed:    21  ops:   262144  ops/sec: 12396.62  bytes/sec: 50776571.60
+</code></pre>
+<p> 顺序读取速度为 <code>50776571.60 B/s ~ 48.4 MB/s</code><br>
+2. <strong> 随机读取测试 </strong>。 <code>--io-threads 16</code>, <code>--io-type read</code>, <code>--io-pattern rand</code>.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd bench --io-pattern rand --io-type read rbd_bench/image01
+bench  type read io_size 4096 io_threads 16 bytes 1073741824 pattern random
+  SEC       OPS   OPS/SEC   BYTES/sec:
+    1     10304  10330.13  42312226.94
+    2     20976  10501.05  43012303.11
+    3     32624  10883.42  44578490.48
+    4     45216  11310.61  46328267.65
+    5     56896  11384.46  46630748.33
+    6     69216  11782.18  48259790.95
+    7     81344  12073.37  49452523.44
+    8     93648  12204.57  49989908.40
+    9    105904  12137.37  49714662.45
+   10    117296  12077.35  49468843.58
+   11    128624  11881.37  48666106.43
+   12    140336  11798.18  48325325.73
+   13    152480  11766.18  48194256.22
+   14    163936  11606.18  47538908.72
+   15    174944  11531.69  47233788.66
+   16    186160  11504.68  47123168.62
+   17    197376  11407.78  46726277.80
+   18    209056  11314.98  46346176.24
+   19    220784  11369.38  46568994.40
+   20    232192  11449.38  46896668.16
+   21    243792  11528.49  47220679.10
+   22    255632  11650.98  47722406.03
+elapsed:    22  ops:   262144  ops/sec: 11611.40  bytes/sec: 47560301.56
+</code></pre>
+<p> 随机读取速度为 <code>47560301.56 B/s ~ 45.4 MB/s</code></p>
+<h4 id="读写测试"> 读写测试 </h4>
+<ol>
+<li><strong> 顺序读写测试 </strong>。 <code>--io-threads 16</code>, <code>--io-pattern seq</code>, <code>--io-type write</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@cpeh0 ~]$ rbd bench --io-type rw --io-pattern seq rbd_bench/image01
+bench  type readwrite read:write=50:50 io_size 4096 io_threads 16 bytes 1073741824 pattern sequential
+ SEC       OPS   OPS/SEC   BYTES/SEC
+   1      8640   8578.63  35138058.68
+   2      9600   4793.53  19634290.32
+   3     10432   3441.30  14095584.16
+   4     11376   2846.52  11659356.30
+   5     12304   2462.48  10086300.14
+   6     13200    912.90  3739220.13
+   7     14096    899.90  3686001.90
+   8     14864    891.02  3649603.24
+   9     15776    878.93  3600091.29
+  10     17664   1073.05  4395223.66
+ ...       ...      ...      ...
+ 211    241584    769.89  3153454.38
+ 212    242176    717.08  2937166.44
+ 213    242976    803.49  3291103.50
+ 214    243728    765.24  3134441.78
+ 215    244272    654.07  2679053.50
+ 216    244976    689.42  2823855.15
+ 217    245744    742.39  3040834.29
+ 218    249152   1232.71  5049184.45
+ 219    250624   1282.24  5252041.26
+ 220    252224   1641.93  6725329.65
+ 221    253872   1747.36  7157203.26
+ 222    254000   1637.41  6706848.82
+ 223    254112    960.11  3932592.52
+ 224    255296    999.13  4092418.19
+ 225    256016    776.08  3178824.42
+ 226    256976    626.81  2567395.36
+ 227    257856    782.45  3204925.96
+ 228    258880    963.99  3948515.16
+ 229    259584    866.60  3549578.30
+ 230    260384    864.59  3541367.22
+ 231    261424    881.65  3611231.11
+elapsed:   237  ops:   262144  ops/sec:  1105.89  bytes/sec: 4529705.49
+read_ops: 131275   read_ops/sec:   553.80   read_bytes/sec: 2268360.4
+write_ops: 130869   write_ops/sec:   552.09   write_bytes/sec: 2261345.02
+</code></pre>
+<p> 同时读写的性能比较差， 都只有 <code>2 MB/s</code> 的速度。。。<br>
+2. <strong> 随机读写测试 </strong>。 <code>--io-threads 16</code>, <code>--io-pattern seq</code>, <code>--io-type rw</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@cpeh0 ~]$ rbd bench --io-type rw --io-pattern rand rbd_bench/image01
+bench  type readwrite read:write=50:50 io_size 4096 io_threads 16 bytes 1073741824 pattern random
+  SEC       OPS   OPS/SEC   BYTES/SEC
+    1      4224   4239.92  17366709.15
+    2      8448   3990.49  16345065.31
+    3      9072   3028.27  12403778.36
+    4      9776   2444.29  10011799.28
+    5     10304   2053.69  8411923.33
+    6     11232   1381.95  5660465.62
+    7     12032    733.81  3005688.85
+    8     12928    770.72  3156880.89
+    9     13696    777.45  3184453.41
+   10     14448    832.78  3411073.28
+  ...       ...       ...         ...
+  271    253872    911.68  3734249.31
+  272    254800    924.61  3787217.39
+  273    255712    926.82  3796260.40
+  274    256704    930.25  3810312.21
+  275    257600    920.41  3769988.70
+  276    258576    934.80  3828938.17
+  277    259472    925.31  3790086.63
+  278    260224    904.01  3702825.06
+  279    260992    858.27  3515475.05
+  280    261920    861.57  3528995.38
+elapsed:   285  ops:   262144  ops/sec:   917.33  bytes/sec: 3757384.15
+read_ops: 131548   read_ops/sec:   460.33   read_bytes/sec: 1885514.72
+write_ops: 130596   write_ops/sec:   457.00   write_bytes/sec: 1871869.43
+</code></pre>
+<p> 随机读写的性能也不好， 都在 <code>1.8 MB/s</code> 左右。。。</p>
+<h3 id="使用 -fio- 对 -RBD- 进行测试"> 使用 fio 对 RBD 进行测试 </h3>
+<p><code>fio</code> 是一个通用的 <code>I/O</code> 性能测试工具，源码在 <a href="http://git.kernel.dk/fio.git" target="_blank" rel="noopener">http://git.kernel.dk/fio.git</a>。 源码里面带了一个 <code>rbd.fio</code> 的模板文件， 用来测试 RBD 块设备的 4K 随机写入性能。 需要根据 pool 和 image 的名字来修改相应的名字。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ git clone git://git.kernel.dk/fio.git && cd fio
+[ceph@ceph0 ~]$ sudo yum install -y zlib-devel librados librbd-devel librados-devel libaio-devel
+[ceph@ceph0 fio]$ ./configure && make -j 4 && sudo make install
+[ceph@ceph0 fio]$ cat examples/rbd.fio
+[global]
+#logging
+#write_iops_log=write_iops_log
+#write_bw_log=write_bw_log
+#write_lat_log=write_lat_log
+ioengine=rbd
+clientname=admin
+pool=rbd
+rbdname=fio_test
+rw=randwrite
+bs=4k
+
+[rbd_iodepth32]
+iodepth=32
+</code></pre>
+<div class="figure center" style="width:880px;"><img class="fig-img" src="rbd-fio-write.png" style="width:880px;height:600px;" alt=""></div>
+<p> 可以看到， <code>fio</code> 给出的结果与之前的结果相近， 在 <code>1.6 MS/s</code> 左右。</p>
+<h2 id="测试 -Ceph- 对象网关性能"> 测试 Ceph 对象网关性能 </h2>
+<p> 使用 <code>swift-bench</code> 可以测试 Ceph 对象网关的性能。 通过 pip 直接从源里安装 <code>swift-bench</code>：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo pip install swift-bench
+</code></pre>
+<p> 这部分没有涉及。。。来自 <a href="https://tracker.ceph.com/projects/ceph/wiki/Benchmark_Ceph_Cluster_Performance" target="_blank" rel="noopener">Ceph</a>。。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">shell> sudo radosgw-admin user create --uid='benchmark' --display-name='benchmark'
+shell> sudo radosgw-admin subuser create --uid='benchmark' --subuser=bencmark:swift --access=full
+shell> sudo radosgw-admin key create --subuser=benchmark --key-type=swift
+shell> radosgw-admin user modify --uid=benchmark --max-buckets=0
+shell> cat > /tm/swift.conf < EOF
+[bench]
+auth = http://gateway-node/auth/v1.0
+user = benchmark:swift
+key  = guessme
+auth_version = 1.0
+EOF
+shell> swift-bench -c 64 -s 4096 -n 1000 -g 100 /tmp/swift.conf
+</code></pre>
+<h3 id="使用 -IOzone- 对 -RBD- 进行测试"> 使用 IOzone 对 RBD 进行测试 </h3>
+<p>…to.be.continued…</p>
+<h2 id="CBT-Ceph- 性能测试框架">CBT - Ceph 性能测试框架 </h2>
+<p><a href="https://github.com/ceph/cbt" target="_blank" rel="noopener">CBT</a> 是 Ceph 官方提供的一个系统化的性能测试工具。 将会在 <a href="/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster"> 使用 CBT 来对 Ceph 集群进行性能测试 </a> 中介绍。。。</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    data-tooltip="在 CentOS 7 下安装与配置 EOS 存储服务"
+                    aria-label="上一篇: 在 CentOS 7 下安装与配置 EOS 存储服务"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/HTCondor-Introduction-Installation-and-Configuration/"
+                    data-tooltip="HTCondor - 介绍, 安装与配置"
+                    aria-label="下一篇: HTCondor - 介绍, 安装与配置"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    data-tooltip="在 CentOS 7 下安装与配置 EOS 存储服务"
+                    aria-label="上一篇: 在 CentOS 7 下安装与配置 EOS 存储服务"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/HTCondor-Introduction-Installation-and-Configuration/"
+                    data-tooltip="HTCondor - 介绍, 安装与配置"
+                    aria-label="下一篇: HTCondor - 介绍, 安装与配置"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/';
+              
+            this.page.identifier = '2018/Ceph-Cluster-Performance-Benchmark/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

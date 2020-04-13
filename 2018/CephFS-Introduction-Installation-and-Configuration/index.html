@@ -1,0 +1,1104 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Ceph 文件系统 CephFS 的介绍与配置 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本 (10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (Metadata Server - MDS) daemon (ceph-mds) 运行, MDS daemon 管理着与存储在 CephFS 上的文件相关的元数据, 并且协调着对 Ceph 存储系统的访问.\n\n\n\nCeph 文件系统简介 \nCephFS 会在任何可能的情况下使用 POSIX 方法. 例如, CephFS 会在所有客户端之间保持缓存强一致性, 但在某些情况下, CephFS 会与严格的 POSIX 语义有些区别.\nCephFS 架构 \n 下图展示了 CephFS 的层次结构:\n\n 底层是核心集群所依赖的, 包括:\n\nOSDs (ceph-osd): CephFS 的数据和元数据就存储在 OSDs 上 \nMDS (ceph-mds): Metadata Servers, 管理着 CephFS 的元数据 \nMons (ceph-mon): Monitors 管理着集群 Map 的主副本 \n\nCeph 存储集群的协议层是 Ceph 原生的 librados 库, 与核心集群交互.\nCephFS 库层包括 CephFS 库 libcephfs, 工作在 librados 的顶层, 代表着 Ceph 文件系统.\n 最上层是能够访问 Ceph 文件系统的两类客户端.\nCephFS 主要特性 \nCephFS 的限制 \n 配置 CephFS MDS\n 要使用 CephFS， 至少就需要一个 metadata server 进程。可以手动创建一个 MDS， 也可以使用 ceph-deploy 或者 ceph-ansible 来部署 MDS。\nceph-deploy 部署 MDS\n$ ceph-deploy mds create mds [mds2 ...]\n\n 手动部署 MDS\n\n 建立 MDS 元数据文件夹 \n\n$ sudo mkdir -p /var/lib/ceph/mds/ceph-{$id}\n\n 为提高性能， 可以将该文件夹挂载到 SSD 上。\n2. 在 /etc/ceph/ceph.conf 中加入下面一节 \n[mds.{$id}]\nhost = {hostname}\n\n\n 创建认证密钥 \n\n$ sudo ceph auth get-or-create mds.{$id} mon 'profile mds' mgr 'profile mds' mds 'allow *' osd 'allow *' > /var/lib/ceph/mds/ceph-{$id}/keyring\n\n\n 启动 MDS 服务 \n\n$ sudo systemctl enable --now ceph-mds@{$id}\n\n\n 查看集群状态：\n\n$ ceph -s\n...\nmds: cephfs_a-1/1/1 up  {0=c=up:active}, 3 up:standby\n...\n\n 移除一个 MDS\n 如果想要移除集群中的一个 MDS，可以通过如下步骤 \n\n 先创建一个 MDS\n 停止旧的 MDS, 启用新的 MDS\n\n$ ceph mds fail \n\n\n 移除旧 MDS 的数据文件夹 \n\n$ sudo rm -rf /var/lib/ceph/mds/ceph-{$id}\n\n 部署 Ceph 文件系统 \n 部署一个 CephFS, 步骤如下:\n\n 在一个 Mon 节点上创建 Ceph 文件系统.\n 若使用 CephX 认证, 需要创建一个访问 CephFS 的客户端 \n 挂载 CephFS 到一个专用的节点.\n\n 以 kernel client 形式挂载 CephFS\n 以 FUSE client 形式挂载 CephFS\n\n\n\n 创建一个 Ceph 文件系统 \n\nCephFS 需要两个 Pools - cephfs-data 和 cephfs-metadata, 分别存储文件数据和文件元数据:\n\n$ ceph osd pool create cephfs-data 256 256\n$ ceph osd pool create cephfs-metadata 64 64\n\n 一般 metadata pool 可以从相对较少的 PGs 启动, 之后可以根据需要增加 PGs. 因为 metadata pool 存储着 CephFS 文件的元数据, 为了保证安全, 最好有较多的副本数. 为了能有较低的延迟, 可以考虑将 metadata 存储在 SSDs 上.\n2. 安装 ceph-common 包:\n$ sudo yum install -y ceph-common\n\n\n 创建一个 CephFS, 名字为 cephfs:\n\n$ ceph fs new cephfs cephfs-metadata cephfs-data\n\n\n 验证至少有一个 MDS 已经进入 Active 状态:\n\n$ ceph fs status cephfs\n...\n\n 创建访问 CephFS 和客户端 \n\n 在 Monitor 上, 创建一个用户:\n\n### usage:\n$ ceph auth get-or-create client. \n### e.g.1:\n$ ceph auth get-or-create client.cephfs mon 'allow r' mds 'allow rw' osd 'allow rw pool=cephfs-data, allow rw pool=cephfs-metadata'\n\n\n 验证生成的 key：\n\n### usage:\n$ ceph auth get client.\n### e.g.:\n$ ceph auth get client.cephfs\n\n\n 将 client keyring 复制到 client 节点的 /etc/ceph 目录下，并修改权限：\n\n$ sudo scp root@mon1:/etc/ceph/ceph.client.cephfs.keyring /etc/ceph/ceph.client.cephfs.keyring\n$ sudo chmod 644 /etc/ceph/ceph.client.cephfs.keyring\n\n 以 kernel client 形式挂载 CephFS\n 可以手动用 mount 命令挂载 CephFS 或者通过 /etc/fstab 自动挂载 CephFS.\n 手动挂载 \n\n 建立挂载点, 例如 /cephfs:\n\n$ sudo mkdir -p /cephfs\n\n\n 挂载 CephFS. 列出多个 Monitors 的地址, 指定 CephX 所需的密钥文件和客户端名, 注意不是 keyring file:\n\n$ sudo mount -t ceph mon1:6789,mon2:6789,mon3:6789/ /cephfs -o name=cephfs,secretfile=/etc/ceph/cephfs.secret\n\n\n 验证 CephFS 已经成功挂载:\n\n$ stat -f /cephfs\n\n 自动挂载 \n\n 创建挂载点:\n\n$ sudo mkdir -p /cephfs\n\n\n 编辑 /etc/fstab 文件:\n\n$ echo \"mon1:6789,mon2:6789,mon3:6789:/ /cephfs ceph name=cephfs,secretfile=/etc/ceph/cephfs.key,_netdev,noatime 0 0\" | sudo tee -a /etc/fstab\n\n\n 重启或者:\n\n$ sudo mount -a\n\n 以 FUSE client 形式挂载 CephFS\n 同样地, 可以手动通过 ceph-fuse 挂载或者通过向 /etc/fstab 添加挂载项自动挂载.\n\n 将 ceph.conf 从 Monitor 节点复制到客户端节点,\n\n$ sudo scp root@mon1:/etc/ceph/ceph.conf /etc/ceph/ceph.conf\n$ sudo chmod 644 /etc/ceph/ceph.conf\n\n\n 客户端上安装 ceph-fuse:\n\n$ sudo yum install ceph-fuse -y\n\n 手动挂载 \n\n 创建挂载点, 例如 /cephfs:\n\n$ sudo mkdir -p /cephfs\n\n\n 使用 ceph-fuse 挂载 CephFS, 如果 对应的 keyring 不在 /etc/ceph 下, 则要显示指定:\n\n$ sudo ceph-fuse -n client.cephfs [--keyring /etc/ceph/client.cephfs.keyring] /cephfs\n\n\n 验证 CephFS 已经成功挂载:\n\n$ stat -f /cephfs\n\n 自动挂载 \n\n 创建挂载点:\n\n$ sudo mkdir -p /cephfs\n\n\n 向 /etc/fstab 添加一项:\n\n$ echo \"none /cephfs fuse.ceph ceph.id=cephfs[,ceph.conf=/etc/ceph/ceph.conf],_netdev,defaults 0 0\"| sudo tee -a /etc/fstab\n### or\n$ echo \"id=cephfs,conf=/etc/ceph/ceph.conf /mnt/ceph2  fuse.ceph _netdev,defaults 0 0\"| sudo tee -a /etc/fstab\n\n\n 挂载 CephFS:\n\n$ sudo mount -a\n## or\n$ sudo reboot\n\n 管理 Ceph 文件系统 \n 卸载 Ceph 文件系统 \n 卸载以 kernel clients 形式挂载的 CephFS\n 跟卸载其他挂载的磁盘一样：\n### usage:\n$ sudo umount \n### e.g.:\n$ sudo umount /cephfs\n\n 卸载以 FUSE client 形式挂载的 CephFS\n### usage:\n$ fusermount -u \n### e.g.:\n$ sudo fusermount -u /cephfs\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-10-02T21:56:07+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-10-02T21:56:07+08:00","description":"Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本(10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (Metadata Server - MDS) daemon (ceph-mds) 运行, MDS daemon 管理着与存储在 CephFS 上的文件相关的元数据, 并且协调着对 Ceph 存储系统的访问.","headline":"Ceph 文件系统 CephFS 的介绍与配置","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/","keywords":"Ceph, Storage","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本(10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (Metadata Server - MDS) daemon (ceph-mds) 运行, MDS daemon 管理着与存储在 Ce">
+<meta name="keywords" content="Ceph,Storage">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Ceph 文件系统 CephFS 的介绍与配置">
+<meta property="og:url" content="https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本(10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (Metadata Server - MDS) daemon (ceph-mds) 运行, MDS daemon 管理着与存储在 Ce">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/diag-2bd02582ba8667320a83ceffbefcdaf7.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.716Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ceph 文件系统 CephFS 的介绍与配置">
+<meta name="twitter:description" content="Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本(10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (Metadata Server - MDS) daemon (ceph-mds) 运行, MDS daemon 管理着与存储在 Ce">
+<meta name="twitter:image" content="https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/diag-2bd02582ba8667320a83ceffbefcdaf7.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Ceph 文件系统 CephFS 的介绍与配置
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-10-02T21:56:07+08:00">
+	
+		    10月 02, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph File System (CephFS) 是与 POSIX 标准兼容的文件系统, 能够提供对 Ceph 存储集群上的文件访问. Jewel 版本 (10.2.0) 是第一个包含稳定 CephFS 的 Ceph 版本. CephFS 需要至少一个元数据服务器 (<code>Metadata Server - MDS</code>) daemon (<code>ceph-mds</code>) 运行, MDS daemon 管理着与存储在 CephFS 上的文件相关的元数据, 并且协调着对 Ceph 存储系统的访问.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Ceph- 文件系统简介"><span class="toc-text">Ceph 文件系统简介 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#CephFS- 架构"><span class="toc-text">CephFS 架构 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#CephFS- 主要特性"><span class="toc-text">CephFS 主要特性 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#CephFS- 的限制"><span class="toc-text">CephFS 的限制 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -CephFS-MDS"><span class="toc-text"> 配置 CephFS MDS</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#ceph-deploy- 部署 -MDS"><span class="toc-text">ceph-deploy 部署 MDS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#手动部署 -MDS"><span class="toc-text"> 手动部署 MDS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#移除一个 -MDS"><span class="toc-text"> 移除一个 MDS</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#部署 -Ceph- 文件系统"><span class="toc-text"> 部署 Ceph 文件系统 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#创建一个 -Ceph- 文件系统"><span class="toc-text"> 创建一个 Ceph 文件系统 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#创建访问 -CephFS- 和客户端"><span class="toc-text"> 创建访问 CephFS 和客户端 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#以 -kernel-client- 形式挂载 -CephFS"><span class="toc-text"> 以 kernel client 形式挂载 CephFS</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#手动挂载"><span class="toc-text"> 手动挂载 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#自动挂载"><span class="toc-text"> 自动挂载 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#以 -FUSE-client- 形式挂载 -CephFS"><span class="toc-text"> 以 FUSE client 形式挂载 CephFS</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#手动挂载 -v2"><span class="toc-text"> 手动挂载 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#自动挂载 -v2"><span class="toc-text"> 自动挂载 </span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#管理 -Ceph- 文件系统"><span class="toc-text"> 管理 Ceph 文件系统 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#卸载 -Ceph- 文件系统"><span class="toc-text"> 卸载 Ceph 文件系统 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#卸载以 -kernel-clients- 形式挂载的 -CephFS"><span class="toc-text"> 卸载以 kernel clients 形式挂载的 CephFS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#卸载以 -FUSE-client- 形式挂载的 -CephFS"><span class="toc-text"> 卸载以 FUSE client 形式挂载的 CephFS</span></a></li></ol></li></ol>
+<h2 id="Ceph- 文件系统简介">Ceph 文件系统简介 </h2>
+<p>CephFS 会在任何可能的情况下使用 POSIX 方法. 例如, CephFS 会在所有客户端之间保持缓存强一致性, 但在某些情况下, CephFS 会与严格的 POSIX 语义有些区别.</p>
+<h3 id="CephFS- 架构">CephFS 架构 </h3>
+<p> 下图展示了 CephFS 的层次结构:</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="diag-2bd02582ba8667320a83ceffbefcdaf7.png" alt=""></div>
+<p> 底层是核心集群所依赖的, 包括:</p>
+<ul>
+<li><code>OSDs (ceph-osd)</code>: CephFS 的数据和元数据就存储在 OSDs 上 </li>
+<li><code>MDS (ceph-mds)</code>: <code>Metadata Servers</code>, 管理着 CephFS 的元数据 </li>
+<li><code>Mons (ceph-mon)</code>: Monitors 管理着集群 Map 的主副本 </li>
+</ul>
+<p>Ceph 存储集群的协议层是 Ceph 原生的 <code>librados</code> 库, 与核心集群交互.</p>
+<p>CephFS 库层包括 CephFS 库 <code>libcephfs</code>, 工作在 <code>librados</code> 的顶层, 代表着 Ceph 文件系统.</p>
+<p> 最上层是能够访问 Ceph 文件系统的两类客户端.</p>
+<h3 id="CephFS- 主要特性">CephFS 主要特性 </h3>
+<h3 id="CephFS- 的限制">CephFS 的限制 </h3>
+<h2 id="配置 -CephFS-MDS"> 配置 CephFS MDS</h2>
+<p> 要使用 CephFS， 至少就需要一个 metadata server 进程。可以手动创建一个 MDS， 也可以使用 <code>ceph-deploy</code> 或者 <code>ceph-ansible</code> 来部署 MDS。</p>
+<h3 id="ceph-deploy- 部署 -MDS">ceph-deploy 部署 MDS</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph-deploy mds create mds [mds2 ...]
+</code></pre>
+<h3 id="手动部署 -MDS"> 手动部署 MDS</h3>
+<ol>
+<li> 建立 MDS 元数据文件夹 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /var/lib/ceph/mds/ceph-{$id}
+</code></pre>
+<p> 为提高性能， 可以将该文件夹挂载到 SSD 上。<br>
+2. 在 <code>/etc/ceph/ceph.conf</code> 中加入下面一节 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">[mds.{$id}]
+host = {hostname}
+</code></pre>
+<ol start="3">
+<li> 创建认证密钥 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo ceph auth get-or-create mds.{$id} mon 'profile mds' mgr 'profile mds' mds 'allow *' osd 'allow *' > /var/lib/ceph/mds/ceph-{$id}/keyring
+</code></pre>
+<ol start="4">
+<li> 启动 MDS 服务 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo systemctl enable --now ceph-mds@{$id}
+</code></pre>
+<ol start="5">
+<li> 查看集群状态：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph -s
+...
+mds: cephfs_a-1/1/1 up  {0=c=up:active}, 3 up:standby
+...
+</code></pre>
+<h3 id="移除一个 -MDS"> 移除一个 MDS</h3>
+<p> 如果想要移除集群中的一个 MDS，可以通过如下步骤 </p>
+<ol>
+<li> 先创建一个 MDS</li>
+<li> 停止旧的 MDS, 启用新的 MDS</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph mds fail <mds name>
+</code></pre>
+<ol start="3">
+<li> 移除旧 MDS 的数据文件夹 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo rm -rf /var/lib/ceph/mds/ceph-{$id}
+</code></pre>
+<h2 id="部署 -Ceph- 文件系统"> 部署 Ceph 文件系统 </h2>
+<p> 部署一个 CephFS, 步骤如下:</p>
+<ol>
+<li> 在一个 Mon 节点上创建 Ceph 文件系统.</li>
+<li> 若使用 <code>CephX</code> 认证, 需要创建一个访问 CephFS 的客户端 </li>
+<li> 挂载 CephFS 到一个专用的节点.
+<ul>
+<li><a href="#%E4%BB%A5-kernel-client-%E5%BD%A2%E5%BC%8F%E6%8C%82%E8%BD%BD-CephFS"> 以 kernel client 形式挂载 CephFS</a></li>
+<li><a href="#%E4%BB%A5-FUSE-client-%E5%BD%A2%E5%BC%8F%E6%8C%82%E8%BD%BD-CephFS"> 以 FUSE client 形式挂载 CephFS</a></li>
+</ul>
+</li>
+</ol>
+<h3 id="创建一个 -Ceph- 文件系统"> 创建一个 Ceph 文件系统 </h3>
+<ol>
+<li>CephFS 需要两个 Pools - <code>cephfs-data</code> 和 <code>cephfs-metadata</code>, 分别存储文件数据和文件元数据:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool create cephfs-data 256 256
+$ ceph osd pool create cephfs-metadata 64 64
+</code></pre>
+<p> 一般 metadata pool 可以从相对较少的 PGs 启动, 之后可以根据需要增加 PGs. 因为 metadata pool 存储着 CephFS 文件的元数据, 为了保证安全, 最好有较多的副本数. 为了能有较低的延迟, 可以考虑将 metadata 存储在 SSDs 上.<br>
+2. 安装 <code>ceph-common</code> 包:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y ceph-common
+</code></pre>
+<ol start="3">
+<li> 创建一个 CephFS, 名字为 <code>cephfs</code>:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph fs new cephfs cephfs-metadata cephfs-data
+</code></pre>
+<ol start="4">
+<li> 验证至少有一个 <code>MDS</code> 已经进入 <code>Active</code> 状态:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph fs status cephfs
+...
+</code></pre>
+<h3 id="创建访问 -CephFS- 和客户端"> 创建访问 CephFS 和客户端 </h3>
+<ol>
+<li> 在 Monitor 上, 创建一个用户:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ ceph auth get-or-create client.<id> <capabilities>
+### e.g.1:
+$ ceph auth get-or-create client.cephfs mon 'allow r' mds 'allow rw' osd 'allow rw pool=cephfs-data, allow rw pool=cephfs-metadata'
+</code></pre>
+<ol start="2">
+<li> 验证生成的 key：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ ceph auth get client.<id>
+### e.g.:
+$ ceph auth get client.cephfs
+</code></pre>
+<ol start="3">
+<li> 将 client keyring 复制到 client 节点的 <code>/etc/ceph</code> 目录下，并修改权限：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo scp root@mon1:/etc/ceph/ceph.client.cephfs.keyring /etc/ceph/ceph.client.cephfs.keyring
+$ sudo chmod 644 /etc/ceph/ceph.client.cephfs.keyring
+</code></pre>
+<h3 id="以 -kernel-client- 形式挂载 -CephFS"> 以 kernel client 形式挂载 CephFS</h3>
+<p> 可以手动用 <code>mount</code> 命令挂载 CephFS 或者通过 <code>/etc/fstab</code> 自动挂载 CephFS.</p>
+<h4 id="手动挂载"> 手动挂载 </h4>
+<ol>
+<li> 建立挂载点, 例如 <code>/cephfs</code>:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /cephfs
+</code></pre>
+<ol start="2">
+<li> 挂载 CephFS. 列出多个 Monitors 的地址, 指定 <code>CephX</code> 所需的密钥文件和客户端名, 注意不是 keyring file:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mount -t ceph mon1:6789,mon2:6789,mon3:6789/ /cephfs -o name=cephfs,secretfile=/etc/ceph/cephfs.secret
+</code></pre>
+<ol start="3">
+<li> 验证 CephFS 已经成功挂载:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ stat -f /cephfs
+</code></pre>
+<h4 id="自动挂载"> 自动挂载 </h4>
+<ol>
+<li> 创建挂载点:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /cephfs
+</code></pre>
+<ol start="2">
+<li> 编辑 <code>/etc/fstab</code> 文件:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ echo "mon1:6789,mon2:6789,mon3:6789:/ /cephfs ceph name=cephfs,secretfile=/etc/ceph/cephfs.key,_netdev,noatime 0 0" | sudo tee -a /etc/fstab
+</code></pre>
+<ol start="3">
+<li> 重启或者:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mount -a
+</code></pre>
+<h3 id="以 -FUSE-client- 形式挂载 -CephFS"> 以 FUSE client 形式挂载 CephFS</h3>
+<p> 同样地, 可以手动通过 <code>ceph-fuse</code> 挂载或者通过向 <code>/etc/fstab</code> 添加挂载项自动挂载.</p>
+<ol>
+<li> 将 <code>ceph.conf</code> 从 Monitor 节点复制到客户端节点,</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo scp root@mon1:/etc/ceph/ceph.conf /etc/ceph/ceph.conf
+$ sudo chmod 644 /etc/ceph/ceph.conf
+</code></pre>
+<ol start="2">
+<li> 客户端上安装 <code>ceph-fuse</code>:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install ceph-fuse -y
+</code></pre>
+<h4 id="手动挂载 -v2"> 手动挂载 </h4>
+<ol>
+<li> 创建挂载点, 例如 <code>/cephfs</code>:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /cephfs
+</code></pre>
+<ol start="2">
+<li> 使用 <code>ceph-fuse</code> 挂载 CephFS, 如果 对应的 keyring 不在 <code>/etc/ceph</code> 下, 则要显示指定:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo ceph-fuse -n client.cephfs [--keyring /etc/ceph/client.cephfs.keyring] /cephfs
+</code></pre>
+<ol start="3">
+<li> 验证 CephFS 已经成功挂载:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ stat -f /cephfs
+</code></pre>
+<h4 id="自动挂载 -v2"> 自动挂载 </h4>
+<ol>
+<li> 创建挂载点:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /cephfs
+</code></pre>
+<ol start="2">
+<li> 向 <code>/etc/fstab</code> 添加一项:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ echo "none /cephfs fuse.ceph ceph.id=cephfs[,ceph.conf=/etc/ceph/ceph.conf],_netdev,defaults 0 0"| sudo tee -a /etc/fstab
+### or
+$ echo "id=cephfs,conf=/etc/ceph/ceph.conf /mnt/ceph2  fuse.ceph _netdev,defaults 0 0"| sudo tee -a /etc/fstab
+</code></pre>
+<ol start="3">
+<li> 挂载 CephFS:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mount -a
+## or
+$ sudo reboot
+</code></pre>
+<h2 id="管理 -Ceph- 文件系统"> 管理 Ceph 文件系统 </h2>
+<h2 id="卸载 -Ceph- 文件系统"> 卸载 Ceph 文件系统 </h2>
+<h3 id="卸载以 -kernel-clients- 形式挂载的 -CephFS"> 卸载以 kernel clients 形式挂载的 CephFS</h3>
+<p> 跟卸载其他挂载的磁盘一样：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ sudo umount <mount-point>
+### e.g.:
+$ sudo umount /cephfs
+</code></pre>
+<h3 id="卸载以 -FUSE-client- 形式挂载的 -CephFS"> 卸载以 FUSE client 形式挂载的 CephFS</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ fusermount -u <mount-point>
+### e.g.:
+$ sudo fusermount -u /cephfs
+</code></pre>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Storage/">Storage</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Transcode-Quda-from-CUDA-to-HIP/"
+                    data-tooltip="将 Quda 从 CUDA 转码到 HIP"
+                    aria-label="上一篇: 将 Quda 从 CUDA 转码到 HIP"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    data-tooltip="手动部署一个 Ceph 存储集群"
+                    aria-label="下一篇: 手动部署一个 Ceph 存储集群"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Transcode-Quda-from-CUDA-to-HIP/"
+                    data-tooltip="将 Quda 从 CUDA 转码到 HIP"
+                    aria-label="上一篇: 将 Quda 从 CUDA 转码到 HIP"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    data-tooltip="手动部署一个 Ceph 存储集群"
+                    aria-label="下一篇: 手动部署一个 Ceph 存储集群"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/';
+              
+            this.page.identifier = '2018/CephFS-Introduction-Installation-and-Configuration/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

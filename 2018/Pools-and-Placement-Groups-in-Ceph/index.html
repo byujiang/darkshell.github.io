@@ -1,0 +1,1240 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Ceph 中的 Pools 和 PGs - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 Pool. Pool 能够为我们提供一些需要的功能.\n\n\n\nCeph 中的 Pool\n如果没有创建一个 Pool, Ceph 会默认有一个叫 rbd 的 Pool. Ceph 中的 Pool 可以提供以下功能:\n\n弹性 (Resilience): 可以设置允许多少 OSDs 错误而不丢失数据.\n位置群组 (Placement Groups):\nCRUSH 规则:\n快照 (Snapshot): Ceph pool 支持对 Pool 创建快照.\n所有权 (Owership): 可以设定一个 user 作为一个 pool 的拥有者.\n\nPool 的基本操作\n你可以 列举(list), 建立(create), 移走(remove) pools.\n列出所有 Pools\n列出集群中的 pools,\n$ ceph osd lspools\n\n在新部署的集群上, 只有 rbd 一个 pool.\n建立一个 Pool\n在创建一个 pool 之前, 需要了解 pool 的 Placement Groups 和 Number of Placement Groups 的测略. 每个 osd 建议 设置 100pg, 但 pg 总数 要除以副本数. 比如, 11 个 osd, size 设置为 3, 那么 pg 数应该设置为 (100*11)/3=367 ~ 400. 官方建议重写 ceph 配置文件里默认的 pg 数, 因为默认的不总会是最优的. 修改配置文件中的如下选项\nosd pool default pg num = 256\nosd pool default pgp num = 256\n\n官方给的推荐是\n\n少于 5 OSDs, pg_num 设为 128\n5 到 10 OSDs, pg_num 设为 512\n10 到 50 OSDs, pg_num 设为 5096\n超过 50 OSDs, 需要自己平衡计算 pg_num\nCeph 官方提供了一个工具 pgcalc 来计算 pg_num\n\n同时, 可以设置默认的副本数和最小副本数:\nosd pool default size = 3\nosd pool default min size = 2\n\n创建一个 pool,\n$ ceph osd pool create {pool-name}  {pg-num} [{pgp-num}] [replicated] [crush-ruleset-name] [expected-num-objects]\n$ ceph osd pool create {pool-name} {pg-num} erasure [erasure-code-profile] [crush-rulset-name] [expected-num-objects]\n\n各个参数的意义如下:\n\n{pool-name}\n\ndesc: Pool 的名字, 不能重复.\ntype: string.\nrequired: yes.\n\n\n{pg-num}\n\ndesc: Pool 的 Placement groups 数, 默认为 8, 基本不能满足需要, 一般要重写\ntype: integer\nrequired: yes\ndefault: 8.\n\n\n{pgp_num}\n\ndesc: 为配置目的而设的 pg 总数. 一般等于 pg 数.\ntype: integer.\nrequired: yes. 如果没有指定, 则为默认值.\ndefault: 8.\n\n\n{replicated|erasure}\n\ndesc: 标明 Pool 的类型是多副本 (replicated) 的以能够从损坏的 OSDs 中恢复数据, 还是 消除(erasure) 的以获得 广义的 RAID5 兼容性.\ntype: string.\nrequire: no.\ndefault: replicated.\n\n\n[crush-ruleset-name]\n\ndesc: crush ruleset 的名字. 指定的 ruleset 必须存在.\ntype: string\nrequired: no\ndefault: 对于 replicated pools, 其值是由 osd pool default crush replicated ruleset 设定. 对于 erasure pools, 如果\n\n\n[erasure-code-profile=profile]\n\ndesc:\ntype: string.\nrequired: no.\n\n\n[expected-num-objects]\n\ndesc: xxx\ntype: integer.\n-required: no.\ndefault: 0, no splitting at the pool creation time.\n\n\n\n例如, 创建一个 名叫 test-pool, pg  和 pgp 为 128 的 Pool,\n$ ceph osd pool create test-pool 128 128\n\n重命名一个 Pool\n对一个 Pool 重命名很简单,\n$ ceph osd pool rename test-pool test-pool-new\n\n但如果有一个 user 对原 pool 配置了权限, 需要先更新 user 的权限到新的 pool, 再重命名 pool.\n设置 Pool 配额\n可以对一个 Pool 的 Object 个数和容量大小设置限制.\n### Object\n$ ceph osd pool set-quota test-pool max_objects 10000\n### Disk usage limit: 100G\n$ ceph osd pool set-quota test-pool max_bytes $((100 * 1024 * 1024 * 1024))\n### check pool quota\n$ ceph osd pool get-quota test-pool\n#### cancel objects quota\n$ ceph osd pool set-quota test-pool max_objects 0\n### cancel disk usage quota\n$ ceph osd pool set-quota test-pool max_bytes 0\n\n删除一个 Pool\n除一个 Pool 会同时清空该 Pool 下所有的数据, 是非常危险的操作(想想  rm -rf /). 因此在删除 Pool 时, 需要输入 Pool 名字两次, 再加上 --yes-i-really-really-mean-it\n$ ceph osd pool delete pool_to_delete pool_to_delete --yes-i-really-really-mean-it\n\n为了能删除一个 Pool, 你还必须在配置文件中设置 mon_allow_pool_delete 为 true, 否则无法删除 pool.\nmon_allow_pool_delete = true\n\n更改配置文件后, 你需要重启所有 Ceph 服务.\n查看 Pool 状态\n$ rados df\n\n创建删除快照\nCeph 支持对 整个 Pool 创建快照, 作用于该 Pool 下的所有对象. Ceph 中 Pool 有两种模式:\n\nPool Snapshot, 建立一个 Pool 时的默认模式, 也即下面要讨论的模式.\nSelf Managed Snapshot, librbd 管理的 snapshot. 如果在 Pool 中创建过 rbd 对象, 该 Pool 会自动转化为这种模式.\n注意, 这两种模式是互斥的. 若对 Pool 创建了快照, 则不能创建 rbd 对象; 若在 Pool 中创建了(过) rbd 对象, 则不能再对 Pool 做快照.\n\n### create a snapshot\n$ ceph osd pool mksnap test-pool test-pool-snapshot\n### delete a snapshot\n$ ceph osd pool rmsnap test-pool test-pool-snapshot\n\n从快照里恢复文件\n### 写入文件\n[ceph@ceph0 ~]$ rados -p test-pool put testfile /etc/hosts\n### 查看文件\n[ceph@ceph0 ~]$ rados -p test-pool ls\ntestfile\n### 创建快照\n[ceph@ceph0 ~]$ ceph osd pool mksnap test-pool test-pool-snapshot001\n### 列出快照\n[ceph@ceph0 ~]$ ceph osd pool lssnap test-pool\ntest-pool-snapshot001 xxxx.xx.xx xx:xx:xx\n#### 删除文件\n[ceph@ceph0 ~]$ rados -p test-pool rm testfile\n#### 从快照恢复文件\n[ceph@ceph0 ~]$ rados rollback -p test-pool testfile test-pool-snapshot001\nrolled back pool test-pool to test-pool-snapshot001\n### 确认结果\n[ceph@ceph0 ~]$ rados  -p test-pool ls\ntestfile\n\n设置获取 Pool 属性\nPool 的属性可以通过如下命令语法设置\n$ ceph osd pool set {pool-name} {key} {value}\n\n例如, 设置 Pool 的冗余副本数\n$ ceph osd pool set test-pool size 3\n\nPool 的属性可以通过如下命令语法获得,\n$ ceph osd pool get {pool-name} {key} {value}\n\n例如, 获取 Pool 的 pg_num,\n$ ceph osd pool get test-pool pg_num\n\nPool 的属性有:\n\nsize\n\ndesc: Pool 中对象存储的副本数. replicated pools only.\ntype: integer\ndefault: 3\n\n\nmin_size\n\ndesc: 可以进行读写的最小副本数. replicated pools only.\ntype:\n\n\ncrash_replay_interval\n\ndesc: 允许客户端回应应答的秒数, 除了未授权的请求除外.\ntype: integer\n\n\npg_num: Pool 建立之时指定, 只能增大??\npgp_num\ncrush_ruleset\nhaspspool\n\ndesc: (取消)设置 HASHPSPOOL 标志.\ntype: integer, 1 for setting flags, 0 for unsetting flag.\n\n\nnodelete\n\ndesc: (取消)设置 NODELETE 标志. 标志一个 Pool 是否可以被删除.\ntype: integer. 1 for setting flag, 0 for unsetting flag\n\n\nnopgchange\n\ndesc: (取消)设置 NOPGCHANGE 标志. 标志一个 Pool 是否可以更改 pg_num\ntype: integer. 1 for setting flag, 0 for unsetting flag.\n\n\nnosizechange:\n\ndesc: (取消)设置 NOSIZECHANGE 标志. 标志一个 Pool 是否可以改变 副本数.\ntype: integer. 1 for setting flag, 0 for unsetting flag.\n\n\nwrite_fadvise_dontneed\n\ndesc: (取消)设置 WRITE_FADVISE_DONTNEED 标志.\ntype: integer. 1 for setting flag, 0 for unsetting flag.\n\n\nnoscrub\n\ndesc: (取消)设置 NOSCRUB 标志.\ntype: integer. 1 for setting flag, 0 for unsetting flag.\n\n\nnodeep-scrub\n\ndesc: (取消)设置  NODEEP_SCRUB 标志.\ntype: integer.\n\n\nhit_set_type\n\ndesc: 启用对 cache pools 的 hit set 追踪.\ntype: string.\nvalue: bloom, explicit_hash, explicit_object. default is bloom.\n\n\n\n具体的含义可参考官方文档。\nPlacement Groups\n一个 Placement Group(PG) 将一系列的对象聚合到一个 群组里, 并将这个群组映射到一系列 OSDs 上去. 为什么要引入 GP 呢? 基于单个对象模式追踪对象的位置和元数据是  非常耗费计算资源  的, 一个有数以百万计对象的系统追踪位置和元数据是  完全不现实  的.  而 placement groups 则比较好地处理了性能和可扩展性的界限. 此外, placement groups 降低了 Ceph 必须存储和获取数据时的处理数和单个对象的元数据量.\n\nPG 会额外消耗一部分系统资源.\n\n直接地: 每一个 PG 会需要一定量的内存和 CPU.\n间接地: PGs 的总数会增加系统的 Peering 数.\n增加 Pool 的 PG 数会减少集群中单个 OSD 的负载变化. 一般地, 只有一个 Pool 的情况下, 可以简单地用如下公式计算 PG 数:\n\n            (OSDs * 100)\nTotal PGs = ------------\n              Replicas\n\n但是多个 Pools 的情况下, 你需要确保你平衡了单个 Pool 的 PG 数和 单个 OSD 上的 PG 数, 以找到一个合理的 PGs 总数, 能够在不加重系统负担或使 peer 过程太慢的情况下提供合理的单个 OSD 较低的变动.\n设置 Pool 的 PG 数\nPool 的 PG 数必须在 Pool 建立之时就得指定.\n获取 Pool 的 PG/PGP 数\n### pg_num\n$ ceph osd pool get {pool-name} pg_num\n### pgp_num\n$ ceph osd pool get {pool-name} pgp_num\n\n查看 PG 状态信息\n[ceph@ceph0 ~]$ ceph pg stat\n576 pgs: 576 active+clean; 0 B data, 17 GiB used, 17 GiB / 35 GiB avail\n\n获取 集群的 PG 统计信息\n$ ceph pg dump [--format ]\n\nformat 为 plain 和 json 两者之一.\n获取卡住的 PG 的统计信息\n$ ceph pg dump_stuck inactive|unclean|stale [--format ] [-t|--threshold ]\n\n处于 STUCK 状态的 pg 有三种 特定的状态:\n\ninactive: PGs 无法处理读写请求, 它们在等待拥有最新数据的 OSD 启动并加入进来.\nunclean: PGs 中有对象存储的副本数没有达到期望的副本数.\nstale: PGs 处于不可知状态. 存储它们的 OSDs 已经有一段时间没有向 Cluster 的 Monitors 报告状态了.\n\nformat 有 plain 和 json两种格式. threshold 定义了 pg 进入 stuck 状态的最小秒数.\n获取一个 PG 的 映射\n获取指定 PG 的 映射(map):\n$ ceph pg map {pg-id}\n\n如\n[ceph@ceph0 ~]$ ceph pg map 1.17c\nosdmap e131 pg 1.17c (1.17c) -> up [6,5,9] acting [6,5,9]\n\nCeph 会返回 PG map, PG id, 和 对应的 OSD 的状态.\n获取一个 PG 的统计信息\n$ ceph pg {pg-id} query\n\n如\n[ceph@ceph0 ~]$ ceph pg 1.17c query\n{\n    \"state\": \"active+clean\",\n    \"snap_trimq\": \"[]\",\n    \"snap_trimq_len\": 0,\n    \"epoch\": 131,\n    \"up\": [\n        6,\n        5,\n        9\n    ],\n    \"acting\": [\n        6,\n        5,\n        9\n    ],\n    \"acting_recovery_backfill\": [\n        \"5\",\n        \"6\",\n        \"9\"\n    ],\n...\n...\n            \"scrub\": {\n                \"scrubber.epoch_start\": \"0\",\n                \"scrubber.active\": false,\n                \"scrubber.state\": \"INACTIVE\",\n                \"scrubber.start\": \"MIN\",\n                \"scrubber.end\": \"MIN\",\n                \"scrubber.max_end\": \"MIN\",\n                \"scrubber.subset_last_update\": \"0'0\",\n                \"scrubber.deep\": false,\n                \"scrubber.waiting_on_whom\": []}\n        },\n        {\n            \"name\": \"Started\",\n            \"enter_time\": \"2018-09-11 21:54:11.827282\"\n        }\n    ],\n    \"agent_state\": {}}\n\n\n擦洗一个 PG\n如果你觉得 一个 PG 不太干净, 可以对这个 PG 进行擦洗:\n$ ceph pg scrub {pg-id}\n\nCeph 会检查主副节点, 生成一个该 Pool 内的所有对象的日志, 相互比较以确保没有文件遗失或不匹配, 并且对象内容一致. 假定所有副本都匹配, 最后的语法扫描会确保所有与快照相关的元数据也一致. 错误会通过 log 记录下来.\n恢复对象 LOST 状态\n如果 集群已经失去了一个或多个 对象, 你决定放弃这个对象, 你应该标记这个对象为 lost. 如果所有可能的位置都已经查寻过, 仍没有找到, 你也许应该放弃这些丢失的对象.\n现在只有一个选项受支持 - revert, 这会将一个对象回滚到之前的版本, 若新的对象的话则直接舍弃. 要将一个unfound 对象标记为 lost, 可以用下面的命令:\n$ ceph pg {pg-id} mark_unfound_lost revert\n\n\n使用须谨慎. 这会让应用搞不清对象是否还在.\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-06T08:56:23+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-06T08:56:23+08:00","description":"在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 Pool. Pool 能够为我们提供一些需要的功能.","headline":"Ceph 中的 Pools 和 PGs","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/","keywords":"Ceph, Storage, Linux","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 Pool. Pool 能够为我们提供一些需要的功能.">
+<meta name="keywords" content="Ceph,Storage,Linux">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Ceph 中的 Pools 和 PGs">
+<meta property="og:url" content="https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 Pool. Pool 能够为我们提供一些需要的功能.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/placement-group.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.732Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ceph 中的 Pools 和 PGs">
+<meta name="twitter:description" content="在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 Pool. Pool 能够为我们提供一些需要的功能.">
+<meta name="twitter:image" content="https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/placement-group.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Ceph 中的 Pools 和 PGs
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-06T08:56:23+08:00">
+	
+		    9月 06, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>在部署完 Ceph 集群后, Ceph 会默认建有一个存储池 <code>Pool</code>. <code>Pool</code> 能够为我们提供一些需要的功能.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Ceph- 中的 -Pool"><span class="toc-text">Ceph 中的 Pool</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Pool- 的基本操作"><span class="toc-text">Pool 的基本操作</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#列出所有 -Pools"><span class="toc-text">列出所有 Pools</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#建立一个 -Pool"><span class="toc-text">建立一个 Pool</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#重命名一个 -Pool"><span class="toc-text">重命名一个 Pool</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#设置 -Pool- 配额"><span class="toc-text">设置 Pool 配额</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#删除一个 -Pool"><span class="toc-text">删除一个 Pool</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#查看 -Pool- 状态"><span class="toc-text">查看 Pool 状态</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#创建删除快照"><span class="toc-text">创建删除快照</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#从快照里恢复文件"><span class="toc-text">从快照里恢复文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#设置获取 -Pool- 属性"><span class="toc-text">设置获取 Pool 属性</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Placement-Groups"><span class="toc-text">Placement Groups</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#设置 -Pool- 的 -PG- 数"><span class="toc-text">设置 Pool 的 PG 数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取 -Pool- 的 -PG-PGP- 数"><span class="toc-text">获取 Pool 的 PG/PGP 数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#查看 -PG- 状态信息"><span class="toc-text">查看 PG 状态信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取 - 集群的 -PG- 统计信息"><span class="toc-text">获取 集群的 PG 统计信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取卡住的 -PG- 的统计信息"><span class="toc-text">获取卡住的 PG 的统计信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取一个 -PG- 的 - 映射"><span class="toc-text">获取一个 PG 的 映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#获取一个 -PG- 的统计信息"><span class="toc-text">获取一个 PG 的统计信息</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#擦洗一个 -PG"><span class="toc-text">擦洗一个 PG</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#恢复对象 -LOST- 状态"><span class="toc-text">恢复对象 LOST 状态</span></a></li></ol></li></ol>
+<h2 id="Ceph- 中的 -Pool">Ceph 中的 Pool</h2>
+<p>如果没有创建一个 <code>Pool</code>, Ceph 会默认有一个叫 <code>rbd</code> 的 Pool. Ceph 中的 Pool 可以提供以下功能:</p>
+<ul>
+<li>弹性 (<code>Resilience</code>): 可以设置允许多少 <code>OSDs</code> 错误而不丢失数据.</li>
+<li>位置群组 (<code>Placement Groups</code>):</li>
+<li><code>CRUSH</code> 规则:</li>
+<li>快照 (<code>Snapshot</code>): Ceph pool 支持对 Pool 创建快照.</li>
+<li>所有权 (<code>Owership</code>): 可以设定一个 user 作为一个 pool 的拥有者.</li>
+</ul>
+<h2 id="Pool- 的基本操作">Pool 的基本操作</h2>
+<p>你可以 列举(<code>list</code>), 建立(<code>create</code>), 移走(<code>remove</code>) pools.</p>
+<h3 id="列出所有 -Pools">列出所有 Pools</h3>
+<p>列出集群中的 pools,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd lspools
+</code></pre>
+<p>在新部署的集群上, 只有 <code>rbd</code> 一个 pool.</p>
+<h3 id="建立一个 -Pool">建立一个 Pool</h3>
+<p>在创建一个 pool 之前, 需要了解 pool 的 Placement Groups 和 Number of Placement Groups 的测略. 每个 <code>osd</code> 建议 设置 100pg, 但 pg 总数 要除以副本数. 比如, 11 个 osd, size 设置为 3, 那么 pg 数应该设置为 (100*11)/3=367 ~ 400. 官方建议重写 ceph 配置文件里默认的 pg 数, 因为默认的不总会是最优的. 修改配置文件中的如下选项</p>
+<pre class=" language-language-bash"><code class="language-language-bash">osd pool default pg num = 256
+osd pool default pgp num = 256
+</code></pre>
+<p>官方给的推荐是</p>
+<ul>
+<li>少于 5 OSDs, pg_num 设为 128</li>
+<li>5 到 10 OSDs, pg_num 设为 512</li>
+<li>10 到 50 OSDs, pg_num 设为 5096</li>
+<li>超过 50 OSDs, 需要自己平衡计算 pg_num</li>
+<li>Ceph 官方提供了一个工具 <a href="http://ceph.com/pgcalc/" target="_blank" rel="noopener">pgcalc</a> 来计算 pg_num</li>
+</ul>
+<p>同时, 可以设置默认的副本数和最小副本数:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">osd pool default size = 3
+osd pool default min size = 2
+</code></pre>
+<p>创建一个 pool,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool create {pool-name}  {pg-num} [{pgp-num}] [replicated] [crush-ruleset-name] [expected-num-objects]
+$ ceph osd pool create {pool-name} {pg-num} erasure [erasure-code-profile] [crush-rulset-name] [expected-num-objects]
+</code></pre>
+<p>各个参数的意义如下:</p>
+<ul>
+<li>{pool-name}
+<ul>
+<li>desc: Pool 的名字, 不能重复.</li>
+<li>type: string.</li>
+<li>required: yes.</li>
+</ul>
+</li>
+<li>{pg-num}
+<ul>
+<li>desc: Pool 的 Placement groups 数, 默认为 8, 基本不能满足需要, 一般要重写</li>
+<li>type: integer</li>
+<li>required: yes</li>
+<li>default: 8.</li>
+</ul>
+</li>
+<li>{pgp_num}
+<ul>
+<li>desc: 为配置目的而设的 pg 总数. 一般等于 pg 数.</li>
+<li>type: integer.</li>
+<li>required: yes. 如果没有指定, 则为默认值.</li>
+<li>default: 8.</li>
+</ul>
+</li>
+<li>{replicated|erasure}
+<ul>
+<li>desc: 标明 Pool 的类型是多副本 (replicated) 的以能够从损坏的 OSDs 中恢复数据, 还是 消除(erasure) 的以获得 广义的 RAID5 兼容性.</li>
+<li>type: string.</li>
+<li>require: no.</li>
+<li>default: replicated.</li>
+</ul>
+</li>
+<li>[crush-ruleset-name]
+<ul>
+<li>desc: crush ruleset 的名字. 指定的 ruleset 必须存在.</li>
+<li>type: string</li>
+<li>required: no</li>
+<li>default: 对于 replicated pools, 其值是由 <code>osd pool default crush replicated ruleset</code> 设定. 对于 erasure pools, 如果</li>
+</ul>
+</li>
+<li>[erasure-code-profile=profile]
+<ul>
+<li>desc:</li>
+<li>type: string.</li>
+<li>required: no.</li>
+</ul>
+</li>
+<li>[expected-num-objects]
+<ul>
+<li>desc: xxx</li>
+<li>type: integer.<br>
+-required: no.</li>
+<li>default: 0, no splitting at the pool creation time.</li>
+</ul>
+</li>
+</ul>
+<p>例如, 创建一个 名叫 <code>test-pool</code>, <code>pg </code> 和 <code>pgp</code> 为 128 的 Pool,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool create test-pool 128 128
+</code></pre>
+<h3 id="重命名一个 -Pool">重命名一个 Pool</h3>
+<p>对一个 Pool 重命名很简单,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool rename test-pool test-pool-new
+</code></pre>
+<p>但如果有一个 user 对原 pool 配置了权限, 需要先更新 user 的权限到新的 pool, 再重命名 pool.</p>
+<h3 id="设置 -Pool- 配额">设置 Pool 配额</h3>
+<p>可以对一个 Pool 的 Object 个数和容量大小设置限制.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### Object
+$ ceph osd pool set-quota test-pool max_objects 10000
+### Disk usage limit: 100G
+$ ceph osd pool set-quota test-pool max_bytes $((100 * 1024 * 1024 * 1024))
+### check pool quota
+$ ceph osd pool get-quota test-pool
+#### cancel objects quota
+$ ceph osd pool set-quota test-pool max_objects 0
+### cancel disk usage quota
+$ ceph osd pool set-quota test-pool max_bytes 0
+</code></pre>
+<h3 id="删除一个 -Pool">删除一个 Pool</h3>
+<p>除一个 Pool 会同时清空该 Pool 下所有的数据, 是非常危险的操作(想想  <code>rm -rf /</code>). 因此在删除 Pool 时, 需要输入 Pool 名字两次, 再加上 <code>--yes-i-really-really-mean-it</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool delete pool_to_delete pool_to_delete --yes-i-really-really-mean-it
+</code></pre>
+<p>为了能删除一个 Pool, 你还必须在配置文件中设置 <code>mon_allow_pool_delete</code> 为 <code>true</code>, 否则无法删除 pool.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">mon_allow_pool_delete = true
+</code></pre>
+<p>更改配置文件后, 你需要重启所有 Ceph 服务.</p>
+<h3 id="查看 -Pool- 状态">查看 Pool 状态</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ rados df
+</code></pre>
+<h3 id="创建删除快照">创建删除快照</h3>
+<p>Ceph 支持对 整个 Pool 创建快照, 作用于该 Pool 下的所有对象. Ceph 中 Pool 有两种模式:</p>
+<ul>
+<li>Pool Snapshot, 建立一个 Pool 时的默认模式, 也即下面要讨论的模式.</li>
+<li>Self Managed Snapshot, librbd 管理的 snapshot. 如果在 Pool 中创建过 rbd 对象, 该 Pool 会自动转化为这种模式.</li>
+<li>注意, 这两种模式是互斥的. 若对 Pool 创建了快照, 则不能创建 rbd 对象; 若在 Pool 中创建了(过) rbd 对象, 则不能再对 Pool 做快照.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">### create a snapshot
+$ ceph osd pool mksnap test-pool test-pool-snapshot
+### delete a snapshot
+$ ceph osd pool rmsnap test-pool test-pool-snapshot
+</code></pre>
+<h3 id="从快照里恢复文件">从快照里恢复文件</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### 写入文件
+[ceph@ceph0 ~]$ rados -p test-pool put testfile /etc/hosts
+### 查看文件
+[ceph@ceph0 ~]$ rados -p test-pool ls
+testfile
+### 创建快照
+[ceph@ceph0 ~]$ ceph osd pool mksnap test-pool test-pool-snapshot001
+### 列出快照
+[ceph@ceph0 ~]$ ceph osd pool lssnap test-pool
+test-pool-snapshot001 xxxx.xx.xx xx:xx:xx
+#### 删除文件
+[ceph@ceph0 ~]$ rados -p test-pool rm testfile
+#### 从快照恢复文件
+[ceph@ceph0 ~]$ rados rollback -p test-pool testfile test-pool-snapshot001
+rolled back pool test-pool to test-pool-snapshot001
+### 确认结果
+[ceph@ceph0 ~]$ rados  -p test-pool ls
+testfile
+</code></pre>
+<h3 id="设置获取 -Pool- 属性">设置获取 Pool 属性</h3>
+<p>Pool 的属性可以通过如下命令语法设置</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool set {pool-name} {key} {value}
+</code></pre>
+<p>例如, 设置 Pool 的冗余副本数</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool set test-pool size 3
+</code></pre>
+<p>Pool 的属性可以通过如下命令语法获得,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool get {pool-name} {key} {value}
+</code></pre>
+<p>例如, 获取 Pool 的 <code>pg_num</code>,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph osd pool get test-pool pg_num
+</code></pre>
+<p>Pool 的属性有:</p>
+<ul>
+<li>size
+<ul>
+<li>desc: Pool 中对象存储的副本数. replicated pools only.</li>
+<li>type: integer</li>
+<li>default: 3</li>
+</ul>
+</li>
+<li>min_size
+<ul>
+<li>desc: 可以进行读写的最小副本数. replicated pools only.</li>
+<li>type:</li>
+</ul>
+</li>
+<li>crash_replay_interval
+<ul>
+<li>desc: 允许客户端回应应答的秒数, 除了未授权的请求除外.</li>
+<li>type: integer</li>
+</ul>
+</li>
+<li>pg_num: Pool 建立之时指定, 只能增大??</li>
+<li>pgp_num</li>
+<li>crush_ruleset</li>
+<li>haspspool
+<ul>
+<li>desc: (取消)设置 <code>HASHPSPOOL</code> 标志.</li>
+<li>type: integer, 1 for setting flags, 0 for unsetting flag.</li>
+</ul>
+</li>
+<li>nodelete
+<ul>
+<li>desc: (取消)设置 <code>NODELETE</code> 标志. 标志一个 Pool 是否可以被删除.</li>
+<li>type: integer. 1 for setting flag, 0 for unsetting flag</li>
+</ul>
+</li>
+<li>nopgchange
+<ul>
+<li>desc: (取消)设置 <code>NOPGCHANGE</code> 标志. 标志一个 Pool 是否可以更改 pg_num</li>
+<li>type: integer. 1 for setting flag, 0 for unsetting flag.</li>
+</ul>
+</li>
+<li>nosizechange:
+<ul>
+<li>desc: (取消)设置 <code>NOSIZECHANGE</code> 标志. 标志一个 Pool 是否可以改变 副本数.</li>
+<li>type: integer. 1 for setting flag, 0 for unsetting flag.</li>
+</ul>
+</li>
+<li>write_fadvise_dontneed
+<ul>
+<li>desc: (取消)设置 <code>WRITE_FADVISE_DONTNEED</code> 标志.</li>
+<li>type: integer. 1 for setting flag, 0 for unsetting flag.</li>
+</ul>
+</li>
+<li>noscrub
+<ul>
+<li>desc: (取消)设置 <code>NOSCRUB</code> 标志.</li>
+<li>type: integer. 1 for setting flag, 0 for unsetting flag.</li>
+</ul>
+</li>
+<li>nodeep-scrub
+<ul>
+<li>desc: (取消)设置  <code>NODEEP_SCRUB</code> 标志.</li>
+<li>type: integer.</li>
+</ul>
+</li>
+<li>hit_set_type
+<ul>
+<li>desc: 启用对 cache pools 的 hit set 追踪.</li>
+<li>type: string.</li>
+<li>value: bloom, explicit_hash, explicit_object. default is bloom.</li>
+</ul>
+</li>
+</ul>
+<p>具体的含义可参考官方文档。</p>
+<h2 id="Placement-Groups">Placement Groups</h2>
+<p>一个 Placement Group(PG) 将一系列的对象聚合到一个 群组里, 并将这个群组映射到一系列 OSDs 上去. 为什么要引入 GP 呢? 基于单个对象模式追踪对象的位置和元数据是 <strong> 非常耗费计算资源 </strong> 的, 一个有数以百万计对象的系统追踪位置和元数据是 <strong> 完全不现实 </strong> 的.  而 placement groups 则比较好地处理了性能和可扩展性的界限. 此外, placement groups 降低了 Ceph 必须存储和获取数据时的处理数和单个对象的元数据量.</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="placement-group.png" alt=""></div>
+<p>PG 会额外消耗一部分系统资源.</p>
+<ul>
+<li>直接地: 每一个 PG 会需要一定量的内存和 CPU.</li>
+<li>间接地: PGs 的总数会增加系统的 Peering 数.<br>
+增加 Pool 的 PG 数会减少集群中单个 OSD 的负载变化. 一般地, 只有一个 Pool 的情况下, 可以简单地用如下公式计算 PG 数:</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">            (OSDs * 100)
+Total PGs = ------------
+              Replicas
+</code></pre>
+<p>但是多个 Pools 的情况下, 你需要确保你平衡了单个 Pool 的 PG 数和 单个 OSD 上的 PG 数, 以找到一个合理的 PGs 总数, 能够在不加重系统负担或使 <code>peer</code> 过程太慢的情况下提供合理的单个 OSD 较低的变动.</p>
+<h3 id="设置 -Pool- 的 -PG- 数">设置 Pool 的 PG 数</h3>
+<p>Pool 的 PG 数必须在 Pool 建立之时就得指定.</p>
+<h3 id="获取 -Pool- 的 -PG-PGP- 数">获取 Pool 的 PG/PGP 数</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### pg_num
+$ ceph osd pool get {pool-name} pg_num
+### pgp_num
+$ ceph osd pool get {pool-name} pgp_num
+</code></pre>
+<h3 id="查看 -PG- 状态信息">查看 PG 状态信息</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph pg stat
+576 pgs: 576 active+clean; 0 B data, 17 GiB used, 17 GiB / 35 GiB avail
+</code></pre>
+<h3 id="获取 - 集群的 -PG- 统计信息">获取 集群的 PG 统计信息</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg dump [--format <format>]
+</code></pre>
+<p><code>format</code> 为 <code>plain</code> 和 <code>json</code> 两者之一.</p>
+<h3 id="获取卡住的 -PG- 的统计信息">获取卡住的 PG 的统计信息</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg dump_stuck inactive|unclean|stale [--format <format>] [-t|--threshold <seconds>]
+</code></pre>
+<p>处于 <code>STUCK</code> 状态的 pg 有三种 特定的状态:</p>
+<ul>
+<li><strong>inactive</strong>: PGs 无法处理读写请求, 它们在等待拥有最新数据的 OSD 启动并加入进来.</li>
+<li><strong>unclean</strong>: PGs 中有对象存储的副本数没有达到期望的副本数.</li>
+<li><strong>stale</strong>: PGs 处于不可知状态. 存储它们的 OSDs 已经有一段时间没有向 Cluster 的 Monitors 报告状态了.</li>
+</ul>
+<p><code>format</code> 有 <code>plain</code> 和 <code>json</code>两种格式. <code>threshold</code> 定义了 pg 进入 <code>stuck</code> 状态的最小秒数.</p>
+<h3 id="获取一个 -PG- 的 - 映射">获取一个 PG 的 映射</h3>
+<p>获取指定 PG 的 映射(map):</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg map {pg-id}
+</code></pre>
+<p>如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph pg map 1.17c
+osdmap e131 pg 1.17c (1.17c) -> up [6,5,9] acting [6,5,9]
+</code></pre>
+<p>Ceph 会返回 PG map, PG id, 和 对应的 OSD 的状态.</p>
+<h3 id="获取一个 -PG- 的统计信息">获取一个 PG 的统计信息</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg {pg-id} query
+</code></pre>
+<p>如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph pg 1.17c query
+{
+    "state": "active+clean",
+    "snap_trimq": "[]",
+    "snap_trimq_len": 0,
+    "epoch": 131,
+    "up": [
+        6,
+        5,
+        9
+    ],
+    "acting": [
+        6,
+        5,
+        9
+    ],
+    "acting_recovery_backfill": [
+        "5",
+        "6",
+        "9"
+    ],
+...
+...
+            "scrub": {
+                "scrubber.epoch_start": "0",
+                "scrubber.active": false,
+                "scrubber.state": "INACTIVE",
+                "scrubber.start": "MIN",
+                "scrubber.end": "MIN",
+                "scrubber.max_end": "MIN",
+                "scrubber.subset_last_update": "0'0",
+                "scrubber.deep": false,
+                "scrubber.waiting_on_whom": []}
+        },
+        {
+            "name": "Started",
+            "enter_time": "2018-09-11 21:54:11.827282"
+        }
+    ],
+    "agent_state": {}}
+
+</code></pre>
+<h3 id="擦洗一个 -PG">擦洗一个 PG</h3>
+<p>如果你觉得 一个 PG 不太干净, 可以对这个 PG 进行擦洗:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg scrub {pg-id}
+</code></pre>
+<p>Ceph 会检查主副节点, 生成一个该 Pool 内的所有对象的日志, 相互比较以确保没有文件遗失或不匹配, 并且对象内容一致. 假定所有副本都匹配, 最后的语法扫描会确保所有与快照相关的元数据也一致. 错误会通过 log 记录下来.</p>
+<h3 id="恢复对象 -LOST- 状态">恢复对象 LOST 状态</h3>
+<p>如果 集群已经失去了一个或多个 对象, 你决定放弃这个对象, 你应该标记这个对象为 <code>lost</code>. 如果所有可能的位置都已经查寻过, 仍没有找到, 你也许应该放弃这些丢失的对象.</p>
+<p>现在只有一个选项受支持 - <code>revert</code>, 这会将一个对象回滚到之前的版本, 若新的对象的话则直接舍弃. 要将一个<code>unfound</code> 对象标记为 <code>lost</code>, 可以用下面的命令:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph pg {pg-id} mark_unfound_lost revert
+</code></pre>
+<blockquote>
+<p>使用须谨慎. 这会让应用搞不清对象是否还在.</p>
+</blockquote>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/Storage/">Storage</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Monitor-File-Change-under-Linux/"
+                    data-tooltip="在 Linux 下监控程序修改文件"
+                    aria-label="上一篇: 在 Linux 下监控程序修改文件"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    data-tooltip="使用 Ceph 块存储作为 OpenStack 平台的存储后端"
+                    aria-label="下一篇: 使用 Ceph 块存储作为 OpenStack 平台的存储后端"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Monitor-File-Change-under-Linux/"
+                    data-tooltip="在 Linux 下监控程序修改文件"
+                    aria-label="上一篇: 在 Linux 下监控程序修改文件"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    data-tooltip="使用 Ceph 块存储作为 OpenStack 平台的存储后端"
+                    aria-label="下一篇: 使用 Ceph 块存储作为 OpenStack 平台的存储后端"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Pools-and-Placement-Groups-in-Ceph/';
+              
+            this.page.identifier = '2018/Pools-and-Placement-Groups-in-Ceph/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

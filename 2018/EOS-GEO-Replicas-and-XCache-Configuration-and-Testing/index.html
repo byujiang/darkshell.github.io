@@ -1,0 +1,1144 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>EOS Geo 异地副本与 XCache 配置与测试 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。\n\n\n\n 地理位置标签 \n 存储节点标签 \n### file: /etc/sysconfig/eos[_env]\nexport EOS_GEOTAG=\"beijing\"\n### or\nexport EOS_GEOTAG=\"daocheng\"\n\n 客户端标签 \n$ eos vid -h\n...\nvid set geotag   : ...\n### default tag\n$ eos vid set geotag default beijing\n### 1.1.*.* daocheng\n$ eos vid set geotag 1.1. daocheng\n\nGeo 调度策略 \n 文件写入 \nEOS 调度器会随机选择一个 FS 群组，然后尽量根据客户端的 GetTag 匹配一个存储位置。如果要强制要求匹配最近的位置进行写入，需要设置如下 tag：\n### enforce location matching geotag when writing\n$ eos space config default space.geo.access.policy.write.exact=on\n\n 注意的是，EOS 会先随机选择一个 fs group。如果该 group 中没有具有与 client 相同 GeoTag\n的 fs，EOS 并不会  重新选择  group,  而是直接在该 group 写入文件，具体可看 Geoscheduling test on /eulake。 所以，要想实现 Exact 的异地写入，最好的是所有的 group 都有所有的 GeoTag 的 fst，最好有相同的 geo layout。\n 文件读取 \n 调度器会尽量将客户端与具有相同 GeoTag 的 replica 位置相匹配。 不保证距离最近的副本会一直被选择 (95%)。 如果要强制进行位置匹配，可以设置如下 tag：\n### enforce location matching geotag when reading\n$ eos space config default space.geo.access.policy.read.exact=on\n\nEOS 异地副本的访问性能测试 \n 下面就对 GeoTag 的读写访问性能进行一些简单的测试。\n 测试准备 \n\nEOS 测试环境: @beijing (MGM &amp; FST), @daocheng (FST)\nEOS 副本设置：beijing &amp; beijing, beijing &amp; daocheng , daocheng &amp; daocheng  双副本 \nEOS GeoTag 设置：基于 IP， beijing &amp; daocheng 两个 GeoTag\nEOS 客户端： 一个 @beijing，一个 @daocheng\n\n 每种读写测试均进行 10 次，取读写速度的平均值。\n 测试方案 \n 文件写入 \n\n 在 beijing 客户端写入测试文件，记录写入速度，检查是否在 daocheng 有副本 \n 在 daocheng 客户端写入测试文件，记录写入速度，检查是否在 beijing 有副本 \n\n 文件读取 \n\n 在 beijing 客户端访问测试文件，记录读取速度，检查是否是访问的 beijing 的副本 \n 在 daocheng 客户端访问测试文件，记录读取速度，检查是否是访问的 daocheng 的副本 \n\n 测试结果 \n 文件写入 \n 客户端以 FUSE 的方式挂载 EOS 到 /eos/ 目录。分别在 beijing 和 daocheng 以 dd 方式写入文件。\n$ cd /eos/user/c/ceph/\n$ for i in {0..9}; do\n    dd if=/dev/urandom of=test${i}.img bs=1M count=5120;sync;\n    eos file info /eos/user/c/ceph/test${i}.img --fullpath;rm -f test${i}.img;\ndone\n\n 测试结果如下，unit MB/s：\n\n\n\nlocation\nReplica\nMax\nMin\nMean\n\n\n\n\nbeijing\nbeijing+daocheng\n8.0\n6.8\n7.5\n\n\ndaocheng\nbeijing+daocheng\n8.6\n7.5\n8.0\n\n\nbeijing\nbeijing\n\n\n\n\n\ndaocheng\ndaocheng\n\n\n320?\n\n\n\n 文件读取 \n$ for i in {0..9};do\n    xrdcp -f -d 1 ${EOS_MGM_URL}//eos/user/c/ceph/test${i}.img .; rm -f test${i}.img\ndone\n\n 测试结果如下，unit MB/s：\n\n\n\nlocation\nReplica\ntarget\nMax\nMin\nMean\n\n\n\n\nbeijing\nbeijing+daocheng\nbeijing\n113.8\n111.3\n112.55\n\n\ndaocheng\nbeijing+daocheng\ndaocheng\n232.7\n146.3\n166.11\n\n\ndaocheng\nbeijing\nbeijing\n10.30\n10.08\n10.16\n\n\nbeijing\ndaocheng\ndaocheng\n\n\n\n\n\n\n 测试结论 \n\n 基于 GeoTag 的调度暂时不会完全匹配相同的 tag，即使设定了强制匹配规则，这可能是 EOS 设置的原因 \nFST 设置成 1 beijng + 1 daocheng 的 group 模式， 在写入文件时，会保证 beijing &amp; daocheng 双副本 \n 从 daocheng 访问 beijing &amp; daocheng 时，有可能访问到 beijing 的副本， 可能能是 EOS 设置的原因 \n\nXrootD Cache Proxy 的访问性能测试 \n 测试准备 \n\nEOS 测试环境: @beijing (MGM &amp; FST)，@daocheng (XrootD Cache Proxy)\nEOS 副本设置： beijing 双副本 \nEOS GeoTag 设置：基于 IP， beijing &amp; daocheng 两个 GeoTag\nEOS 客户端：两个 @daocheng， 一个做 XrootD Cache Proxy, 一个用于读写访问 \nXrootD Cache Proxy 两种模式： Disk Cache and Memory Cache\n\n 测试方案 \n 每种读取测试均进行 10 次，取读写速度的平均值，每个文件大小为 512MB 和 5G。\n 文件读取 \n\n 在 daocheng 客户端通过代理访问测试文件，记录读取速度 \n 在 daocheng 客户端再次通过代理访问测试文件，记录读取速度 \n\n 测试结果 \n 使用 Disk Cache 模式第二次读取的时候，对代理和客户端进行了内存缓存清理。\n$ sync; echo 3 > /sync; echo 3 > /proc/sys/vm/drop_caches\n\n 文件读取 \n\n 从 daocheng 读取 beijing 的文件 (500MB)：\n\n\n\n\nmode\n1st Max\n1st Min\n1rs Mean\n2nd Max\n2nd Min\n2nd Mean\n\n\n\n\nDisk Cache\n11.38\n10.24\n10.95\n512\n512\n512\n\n\nMem Cache\n\n\n\n\n\n512?\n\n\n\n\n 从 daocheng 读取 beijing 的文件 (5GB)\n\n\n\n\nmode\n1st Max\n1st Min\n1rs Mean\n2nd Max\n2nd Min\n2nd Mean\n\n\n\n\nDisk Cache\n5.095 ?\n5.095 ?\n5.095?\n341.3\n301.2\n320\n\n\nMem Cache\n\n\n\n\n\n320?\n\n\n\n 测试结论 \n\nDisk Cache 模式是基于路径而不是 md5 或 sha256 等哈希值的文件代理缓存 \n 大文件会缓存到硬盘上，小文件同时会缓存到内存中 \n 文件重命名或移动后，访问新的文件会重新进行缓存 \n 文件被修改或删除后，若有缓存则会直接返回缓存的文件，可能一定时间后才会检查文件状态 \n 不确定是否有自动清理功能，或者要手动进行清理空间  使用 pfc.diskusgage 指定使用空间警戒线 \n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-11-27T10:15:28+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-11-27T10:15:28+08:00","description":"EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。","headline":"EOS Geo 异地副本与 XCache 配置与测试","image":["eos.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/","keywords":"EOS, XCache","thumbnailUrl":"eos.png"}</script>
+    <meta name="description" content="EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。">
+<meta name="keywords" content="EOS,XCache">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="EOS Geo 异地副本与 XCache 配置与测试">
+<meta property="og:url" content="https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.719Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="EOS Geo 异地副本与 XCache 配置与测试">
+<meta name="twitter:description" content="EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/eos.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/eos.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            EOS Geo 异地副本与 XCache 配置与测试
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-11-27T10:15:28+08:00">
+	
+		    11月 27, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/EOS/">EOS</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>EOS 中有基于 GeoTag 的存取策略，可以对 fs 和 client 根据 IP 或强行设定 GeoTag, 令 client 根据 GeoTag 匹配原则选择相应 fs 进行读写副本。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#地理位置标签"><span class="toc-text"> 地理位置标签 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#存储节点标签"><span class="toc-text"> 存储节点标签 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#客户端标签"><span class="toc-text"> 客户端标签 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Geo- 调度策略"><span class="toc-text">Geo 调度策略 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#文件写入"><span class="toc-text"> 文件写入 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#文件读取"><span class="toc-text"> 文件读取 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#EOS- 异地副本的访问性能测试"><span class="toc-text">EOS 异地副本的访问性能测试 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#测试准备"><span class="toc-text"> 测试准备 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试方案"><span class="toc-text"> 测试方案 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#文件写入 -v2"><span class="toc-text"> 文件写入 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#文件读取 -v2"><span class="toc-text"> 文件读取 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试结果"><span class="toc-text"> 测试结果 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#文件写入 -v3"><span class="toc-text"> 文件写入 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#文件读取 -v3"><span class="toc-text"> 文件读取 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试结论"><span class="toc-text"> 测试结论 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#XrootD-Cache-Proxy- 的访问性能测试"><span class="toc-text">XrootD Cache Proxy 的访问性能测试 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#测试准备 -v2"><span class="toc-text"> 测试准备 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试方案 -v2"><span class="toc-text"> 测试方案 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#文件读取 -v4"><span class="toc-text"> 文件读取 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试结果 -v2"><span class="toc-text"> 测试结果 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#文件读取 -v5"><span class="toc-text"> 文件读取 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试结论 -v2"><span class="toc-text"> 测试结论 </span></a></li></ol></li></ol>
+<h2 id="地理位置标签"> 地理位置标签 </h2>
+<h3 id="存储节点标签"> 存储节点标签 </h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### file: /etc/sysconfig/eos[_env]
+export EOS_GEOTAG="beijing"
+### or
+export EOS_GEOTAG="daocheng"
+</code></pre>
+<h3 id="客户端标签"> 客户端标签 </h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ eos vid -h
+...
+vid set geotag <IP-prefix> <geotag> : ...
+### default tag
+$ eos vid set geotag default beijing
+### 1.1.*.* daocheng
+$ eos vid set geotag 1.1. daocheng
+</code></pre>
+<h2 id="Geo- 调度策略">Geo 调度策略 </h2>
+<h3 id="文件写入"> 文件写入 </h3>
+<p>EOS 调度器会随机选择一个 FS 群组，然后尽量根据客户端的 <code>GetTag</code> 匹配一个存储位置。如果要强制要求匹配最近的位置进行写入，需要设置如下 tag：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### enforce location matching geotag when writing
+$ eos space config default space.geo.access.policy.write.exact=on
+</code></pre>
+<p> 注意的是，EOS 会先随机选择一个 fs group。如果该 group 中没有具有与 client 相同 GeoTag<br>
+的 fs，EOS 并不会 <strong> 重新选择 </strong> group,  而是直接在该 group 写入文件，具体可看 <a href="https://eos-community.web.cern.ch/t/geoscheduling-test-on-eulake/176" target="_blank" rel="noopener">Geoscheduling test on /eulake</a>。 所以，要想实现 <strong>Exact</strong> 的异地写入，最好的是所有的 group 都有所有的 GeoTag 的 fst，最好有相同的 geo layout。</p>
+<h3 id="文件读取"> 文件读取 </h3>
+<p> 调度器会尽量将客户端与具有相同 GeoTag 的 replica 位置相匹配。 不保证距离最近的副本会一直被选择 (95%)。 如果要强制进行位置匹配，可以设置如下 tag：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### enforce location matching geotag when reading
+$ eos space config default space.geo.access.policy.read.exact=on
+</code></pre>
+<h2 id="EOS- 异地副本的访问性能测试">EOS 异地副本的访问性能测试 </h2>
+<p> 下面就对 GeoTag 的读写访问性能进行一些简单的测试。</p>
+<h3 id="测试准备"> 测试准备 </h3>
+<ul>
+<li>EOS 测试环境: @beijing (MGM &amp; FST), @daocheng (FST)</li>
+<li>EOS 副本设置：beijing &amp; beijing, beijing &amp; daocheng , daocheng &amp; daocheng  双副本 </li>
+<li>EOS GeoTag 设置：基于 IP， beijing &amp; daocheng 两个 GeoTag</li>
+<li>EOS 客户端： 一个 @beijing，一个 @daocheng</li>
+</ul>
+<p> 每种读写测试均进行 10 次，取读写速度的平均值。</p>
+<h3 id="测试方案"> 测试方案 </h3>
+<h4 id="文件写入 -v2"> 文件写入 </h4>
+<ul>
+<li> 在 beijing 客户端写入测试文件，记录写入速度，检查是否在 daocheng 有副本 </li>
+<li> 在 daocheng 客户端写入测试文件，记录写入速度，检查是否在 beijing 有副本 </li>
+</ul>
+<h4 id="文件读取 -v2"> 文件读取 </h4>
+<ul>
+<li> 在 beijing 客户端访问测试文件，记录读取速度，检查是否是访问的 beijing 的副本 </li>
+<li> 在 daocheng 客户端访问测试文件，记录读取速度，检查是否是访问的 daocheng 的副本 </li>
+</ul>
+<h3 id="测试结果"> 测试结果 </h3>
+<h4 id="文件写入 -v3"> 文件写入 </h4>
+<p> 客户端以 FUSE 的方式挂载 EOS 到 <code>/eos/</code> 目录。分别在 beijing 和 daocheng 以 <code>dd</code> 方式写入文件。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cd /eos/user/c/ceph/
+$ for i in {0..9}; do
+    dd if=/dev/urandom of=test${i}.img bs=1M count=5120;sync;
+    eos file info /eos/user/c/ceph/test${i}.img --fullpath;rm -f test${i}.img;
+done
+</code></pre>
+<p> 测试结果如下，unit MB/s：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">location</th>
+<th style="text-align:center">Replica</th>
+<th style="text-align:center">Max</th>
+<th style="text-align:center">Min</th>
+<th style="text-align:center">Mean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">beijing+daocheng</td>
+<td style="text-align:center">8.0</td>
+<td style="text-align:center">6.8</td>
+<td style="text-align:center">7.5</td>
+</tr>
+<tr>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">beijing+daocheng</td>
+<td style="text-align:center">8.6</td>
+<td style="text-align:center">7.5</td>
+<td style="text-align:center">8.0</td>
+</tr>
+<tr>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+</tr>
+<tr>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center">320?</td>
+</tr>
+</tbody>
+</table>
+<h4 id="文件读取 -v3"> 文件读取 </h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ for i in {0..9};do
+    xrdcp -f -d 1 ${EOS_MGM_URL}//eos/user/c/ceph/test${i}.img .; rm -f test${i}.img
+done
+</code></pre>
+<p> 测试结果如下，unit MB/s：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">location</th>
+<th style="text-align:center">Replica</th>
+<th style="text-align:center">target</th>
+<th style="text-align:center">Max</th>
+<th style="text-align:center">Min</th>
+<th style="text-align:center">Mean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">beijing+daocheng</td>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">113.8</td>
+<td style="text-align:center">111.3</td>
+<td style="text-align:center">112.55</td>
+</tr>
+<tr>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">beijing+daocheng</td>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">232.7</td>
+<td style="text-align:center">146.3</td>
+<td style="text-align:center">166.11</td>
+</tr>
+<tr>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">10.30</td>
+<td style="text-align:center">10.08</td>
+<td style="text-align:center">10.16</td>
+</tr>
+<tr>
+<td style="text-align:center">beijing</td>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center">daocheng</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+</tr>
+</tbody>
+</table>
+<h3 id="测试结论"> 测试结论 </h3>
+<ul>
+<li> 基于 GeoTag 的调度暂时不会完全匹配相同的 tag，即使设定了强制匹配规则，这可能是 EOS 设置的原因 </li>
+<li>FST 设置成 1 beijng + 1 daocheng 的 group 模式， 在写入文件时，会保证 beijing &amp; daocheng 双副本 </li>
+<li> 从 daocheng 访问 beijing &amp; daocheng 时，有可能访问到 beijing 的副本， 可能能是 EOS 设置的原因 </li>
+</ul>
+<h2 id="XrootD-Cache-Proxy- 的访问性能测试">XrootD Cache Proxy 的访问性能测试 </h2>
+<h3 id="测试准备 -v2"> 测试准备 </h3>
+<ul>
+<li>EOS 测试环境: @beijing (MGM &amp; FST)，@daocheng (XrootD Cache Proxy)</li>
+<li>EOS 副本设置： beijing 双副本 </li>
+<li>EOS GeoTag 设置：基于 IP， beijing &amp; daocheng 两个 GeoTag</li>
+<li>EOS 客户端：两个 @daocheng， 一个做 XrootD Cache Proxy, 一个用于读写访问 </li>
+<li>XrootD Cache Proxy 两种模式： Disk Cache and Memory Cache</li>
+</ul>
+<h3 id="测试方案 -v2"> 测试方案 </h3>
+<p> 每种读取测试均进行 10 次，取读写速度的平均值，每个文件大小为 512MB 和 5G。</p>
+<h4 id="文件读取 -v4"> 文件读取 </h4>
+<ul>
+<li> 在 daocheng 客户端通过代理访问测试文件，记录读取速度 </li>
+<li> 在 daocheng 客户端再次通过代理访问测试文件，记录读取速度 </li>
+</ul>
+<h3 id="测试结果 -v2"> 测试结果 </h3>
+<p> 使用 Disk Cache 模式第二次读取的时候，对代理和客户端进行了内存缓存清理。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sync; echo 3 > /sync; echo 3 > /proc/sys/vm/drop_caches
+</code></pre>
+<h4 id="文件读取 -v5"> 文件读取 </h4>
+<ol>
+<li> 从 daocheng 读取 beijing 的文件 (500MB)：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">mode</th>
+<th style="text-align:center">1st Max</th>
+<th style="text-align:center">1st Min</th>
+<th style="text-align:center">1rs Mean</th>
+<th style="text-align:center">2nd Max</th>
+<th style="text-align:center">2nd Min</th>
+<th style="text-align:center">2nd Mean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Disk Cache</td>
+<td style="text-align:center">11.38</td>
+<td style="text-align:center">10.24</td>
+<td style="text-align:center">10.95</td>
+<td style="text-align:center">512</td>
+<td style="text-align:center">512</td>
+<td style="text-align:center">512</td>
+</tr>
+<tr>
+<td style="text-align:center">Mem Cache</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center">512?</td>
+</tr>
+</tbody>
+</table>
+<ol start="2">
+<li> 从 daocheng 读取 beijing 的文件 (5GB)</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">mode</th>
+<th style="text-align:center">1st Max</th>
+<th style="text-align:center">1st Min</th>
+<th style="text-align:center">1rs Mean</th>
+<th style="text-align:center">2nd Max</th>
+<th style="text-align:center">2nd Min</th>
+<th style="text-align:center">2nd Mean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Disk Cache</td>
+<td style="text-align:center">5.095 ?</td>
+<td style="text-align:center">5.095 ?</td>
+<td style="text-align:center">5.095?</td>
+<td style="text-align:center">341.3</td>
+<td style="text-align:center">301.2</td>
+<td style="text-align:center">320</td>
+</tr>
+<tr>
+<td style="text-align:center">Mem Cache</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center">320?</td>
+</tr>
+</tbody>
+</table>
+<h3 id="测试结论 -v2"> 测试结论 </h3>
+<ul>
+<li>Disk Cache 模式是基于路径而不是 <code>md5</code> 或 <code>sha256</code> 等哈希值的文件代理缓存 </li>
+<li> 大文件会缓存到硬盘上，小文件同时会缓存到内存中 </li>
+<li> 文件重命名或移动后，访问新的文件会重新进行缓存 </li>
+<li> 文件被修改或删除后，若有缓存则会直接返回缓存的文件，可能一定时间后才会检查文件状态 </li>
+<li><s> 不确定是否有自动清理功能，或者要手动进行清理空间 </s> 使用 pfc.diskusgage 指定使用空间警戒线 </li>
+</ul>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/EOS/">EOS</a> <a class="tag tag--primary tag--small t-link" href="/tags/XCache/">XCache</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Adding-FST-Nodes-and-Filesystems-on-EOS/"
+                    data-tooltip="EOS 中增加 FST 节点和 FS"
+                    aria-label="上一篇: EOS 中增加 FST 节点和 FS"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/STDIN-and-STDOUT-Redirect-in-Bash/"
+                    data-tooltip="Bash 中的输入输出重定向"
+                    aria-label="下一篇: Bash 中的输入输出重定向"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Adding-FST-Nodes-and-Filesystems-on-EOS/"
+                    data-tooltip="EOS 中增加 FST 节点和 FS"
+                    aria-label="上一篇: EOS 中增加 FST 节点和 FS"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/STDIN-and-STDOUT-Redirect-in-Bash/"
+                    data-tooltip="Bash 中的输入输出重定向"
+                    aria-label="下一篇: Bash 中的输入输出重定向"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/';
+              
+            this.page.identifier = '2018/EOS-GEO-Replicas-and-XCache-Configuration-and-Testing/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

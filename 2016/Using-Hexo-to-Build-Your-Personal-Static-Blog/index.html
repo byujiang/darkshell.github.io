@@ -1,0 +1,959 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Using Hexo to Build Your Personal Static Blog - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"hexo is a static blog platform based on Nodejs by tommy351, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. After using ghost for several months, I decided to move my blog from ghost to hexo.\n\n\n\nBefore installing hexo, one needs to install nodejs and npm, which could be downloaded and installed from the official site nodejs. And be sure that git is installed as well\nsudo npm install -g hexo-cli hexo-server\n\nGetting Started With Hexo\nHexo is easy to use, and most commands have abbreviation, like:\nhexo generate\n\nis equivalent to\nhexo g\n\nIn the following, we use the convention to include full command ant its abbr.\nhexo g[enerate]\n\nInit a project\nhexo init [folder]\ncd [folder] && nam install\n\nIf no [folder], hexo will initialize the current directory.\nGenerate Static Web Pages\nhexo g[enerate]\n\nCreate New Post/Page\nhexo n[ew] \"title\"\nhexo n[ew] page \"title\"\n\nDeploy Your Blog\nhexo d[eploy]\n\nHere one needs to have the project properly configured.\nPublish Your Draft\nhexo p[ublish] 'draft' post/page\n\nClean Existed Files\nhexo c[lean]\n\nRun Hexo Server\nRun a hexo server to publish your site:\nhexo s[erver]\n\nRender Your Blog\nhexo render\n\nOther Commands\nhexo help\nhexo version\n\nComposite Command\nSeveral commands can be combined,\nhexo d[eploy] -g # create and deploy\nhexo s[erver] -g # create and preview\n\nDeveloping Your Hexo\nBasic Configuration\nNoting that there is a space after the colon followed by each option, like\n### right configuration\naaa: bbb\n### wrong configuration\naaa:bbb\n\nSome basic options are followed below,\ntitle: dark\nsubtitle: darkshell\ndescription: a simple static blog\nauthor: dark\nlanguage: en\n\nurl: http://yoursite.com\n\nDeploy Config\nOne can easily deploy hexo project to github pages via git, or your personal server.\ntype: git\nrepository: git@github.com/darkshell/darkshell.io.git\nbranch: master\n\nTuning Your Hexo\nThemes\nhexo project 上有许多非常棒的主题, 下面是个人觉得很棒的主题.\n\nAlberta\nCasper – The Ghost Casper theme ported to Hexo.\nTransparent – A transparent theme based on Light.\nVno – The Ghost Vno theme ported to Hexo.\nTranquilpeark – a good hexo theme\n\nPlugins\nhttp://hexo.io/plugins 上有很多插件, 可以按需安装.\nnpm install hexo-render-ejs --save\nnpm install hexo-render-stylus --save\nnpm install hexo-render-marked --save\n\n\n 水水更健康 O(∩_∩)O~\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2016-01-21T12:08:57+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2016-01-21T12:08:57+08:00","description":"hexo is a static blog platform based on Nodejs by tommy351, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. After using ghost for several months, I decided to move my blog from ghost to hexo.","headline":"Using Hexo to Build Your Personal Static Blog","image":["hexo.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/","keywords":"hexo, nodejs","thumbnailUrl":"hexo.png"}</script>
+    <meta name="description" content="hexo is a static blog platform based on Nodejs by tommy351, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. A">
+<meta name="keywords" content="hexo,nodejs">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Using Hexo to Build Your Personal Static Blog">
+<meta property="og:url" content="https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="hexo is a static blog platform based on Nodejs by tommy351, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. A">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.742Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Using Hexo to Build Your Personal Static Blog">
+<meta name="twitter:description" content="hexo is a static blog platform based on Nodejs by tommy351, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. A">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/hexo.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/hexo.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Using Hexo to Build Your Personal Static Blog
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2016-01-21T12:08:57+08:00">
+	
+		    1月 21, 2016
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/blog/">blog</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p><a href="https://hexo.io" target="_blank" rel="noopener">hexo</a> is a static blog platform based on <code>Nodejs</code> by <a href="https://zespia.tw/" target="_blank" rel="noopener">tommy351</a>, using Markdown (or other engine) to parse post, and the most exciting point is its fast enough as to parse hundreds of posts with seconds. After using <a href="https://ghost.org" target="_blank" rel="noopener">ghost</a> for several months, I decided to move my blog from ghost to hexo.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Getting-Started-With-Hexo"><span class="toc-text">Getting Started With Hexo</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Init-a-project"><span class="toc-text">Init a project</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Generate-Static-Web-Pages"><span class="toc-text">Generate Static Web Pages</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Create-New-Post-Page"><span class="toc-text">Create New Post/Page</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Deploy-Your-Blog"><span class="toc-text">Deploy Your Blog</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Publish-Your-Draft"><span class="toc-text">Publish Your Draft</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Clean-Existed-Files"><span class="toc-text">Clean Existed Files</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Run-Hexo-Server"><span class="toc-text">Run Hexo Server</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Render-Your-Blog"><span class="toc-text">Render Your Blog</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Other-Commands"><span class="toc-text">Other Commands</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Composite-Command"><span class="toc-text">Composite Command</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Developing-Your-Hexo"><span class="toc-text">Developing Your Hexo</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Basic-Configuration"><span class="toc-text">Basic Configuration</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Deploy-Config"><span class="toc-text">Deploy Config</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Tuning-Your-Hexo"><span class="toc-text">Tuning Your Hexo</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Themes"><span class="toc-text">Themes</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Plugins"><span class="toc-text">Plugins</span></a></li></ol></li></ol>
+<p>Before installing <code>hexo</code>, one needs to install <code>nodejs</code> and <code>npm</code>, which could be downloaded and installed from the official site <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs</a>. And be sure that git is installed as well</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo npm install -g hexo-cli hexo-server
+</code></pre>
+<h2 id="Getting-Started-With-Hexo">Getting Started With Hexo</h2>
+<p>Hexo is easy to use, and most commands have abbreviation, like:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo generate
+</code></pre>
+<p>is equivalent to</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo g
+</code></pre>
+<p>In the following, we use the convention to include full command ant its abbr.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo g[enerate]
+</code></pre>
+<h3 id="Init-a-project">Init a project</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo init [folder]
+cd [folder] && nam install
+</code></pre>
+<p>If no <code>[folder]</code>, hexo will initialize the current directory.</p>
+<h3 id="Generate-Static-Web-Pages">Generate Static Web Pages</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo g[enerate]
+</code></pre>
+<h3 id="Create-New-Post-Page">Create New Post/Page</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo n[ew] "title"
+hexo n[ew] page "title"
+</code></pre>
+<h3 id="Deploy-Your-Blog">Deploy Your Blog</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo d[eploy]
+</code></pre>
+<p>Here one needs to have the project properly configured.</p>
+<h3 id="Publish-Your-Draft">Publish Your Draft</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo p[ublish] 'draft' post/page
+</code></pre>
+<h3 id="Clean-Existed-Files">Clean Existed Files</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo c[lean]
+</code></pre>
+<h3 id="Run-Hexo-Server">Run Hexo Server</h3>
+<p>Run a hexo server to publish your site:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo s[erver]
+</code></pre>
+<h3 id="Render-Your-Blog">Render Your Blog</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo render
+</code></pre>
+<h3 id="Other-Commands">Other Commands</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo help
+hexo version
+</code></pre>
+<h3 id="Composite-Command">Composite Command</h3>
+<p>Several commands can be combined,</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hexo d[eploy] -g # create and deploy
+hexo s[erver] -g # create and preview
+</code></pre>
+<h2 id="Developing-Your-Hexo">Developing Your Hexo</h2>
+<h3 id="Basic-Configuration">Basic Configuration</h3>
+<p>Noting that there is a space after the colon followed by each option, like</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### right configuration
+aaa: bbb
+### wrong configuration
+aaa:bbb
+</code></pre>
+<p>Some basic options are followed below,</p>
+<pre class=" language-language-yml"><code class="language-language-yml">title: dark
+subtitle: darkshell
+description: a simple static blog
+author: dark
+language: en
+
+url: http://yoursite.com
+</code></pre>
+<h3 id="Deploy-Config">Deploy Config</h3>
+<p>One can easily deploy hexo project to github pages via git, or your personal server.</p>
+<pre class=" language-language-yml"><code class="language-language-yml">type: git
+repository: git@github.com/darkshell/darkshell.io.git
+branch: master
+</code></pre>
+<h2 id="Tuning-Your-Hexo">Tuning Your Hexo</h2>
+<h3 id="Themes">Themes</h3>
+<p><a href="https://github.com/hexojs/hexo/wiki/Themes" target="_blank" rel="noopener">hexo project</a> 上有许多非常棒的主题, 下面是个人觉得很棒的主题.</p>
+<ul>
+<li><a href="https://github.com/ken8203/hexo-theme-alberta" target="_blank" rel="noopener">Alberta</a></li>
+<li><a href="https://github.com/kywk/hexo-theme-casper" target="_blank" rel="noopener">Casper</a> – The Ghost Casper theme ported to Hexo.</li>
+<li><a href="https://github.com/bingli8882/hexo-theme-transparent" target="_blank" rel="noopener">Transparent</a> – A transparent theme based on Light.</li>
+<li><a href="https://github.com/lenbo-ma/hexo-theme-vno" target="_blank" rel="noopener">Vno</a> – The Ghost Vno theme ported to Hexo.</li>
+<li><a href="https://github.com/LouisBarranqueiro/tranquilpeak-hexo-theme" target="_blank" rel="noopener">Tranquilpeark</a> – a good hexo theme</li>
+</ul>
+<h3 id="Plugins">Plugins</h3>
+<p><a href="http://hexo.io/plugins" target="_blank" rel="noopener">http://hexo.io/plugins</a> 上有很多插件, 可以按需安装.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">npm install hexo-render-ejs --save
+npm install hexo-render-stylus --save
+npm install hexo-render-marked --save
+</code></pre>
+<hr>
+<p> 水水更健康 O(∩_∩)O~</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/hexo/">hexo</a> <a class="tag tag--primary tag--small t-link" href="/tags/nodejs/">nodejs</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Forbidding-Connections-from-Specific-IPs-in-SS/"
+                    data-tooltip="Forbidding Connections for Specific IPs in SS"
+                    aria-label="上一篇: Forbidding Connections for Specific IPs in SS"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    data-tooltip="Using GPG to Protect Your Pirvacy and Information"
+                    aria-label="下一篇: Using GPG to Protect Your Pirvacy and Information"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Forbidding-Connections-from-Specific-IPs-in-SS/"
+                    data-tooltip="Forbidding Connections for Specific IPs in SS"
+                    aria-label="上一篇: Forbidding Connections for Specific IPs in SS"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2016/Using-GPG-to-Protect-Your-Pirvacy-And-Information/"
+                    data-tooltip="Using GPG to Protect Your Pirvacy and Information"
+                    aria-label="下一篇: Using GPG to Protect Your Pirvacy and Information"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/';
+              
+            this.page.identifier = '2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

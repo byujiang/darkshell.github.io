@@ -1,0 +1,1178 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>手动部署一个 Ceph 存储集群 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 提供了 ceph-deploy 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。\n\n\n\n 所有的 Ceph 集群都心须有一个 monitor，然后有尽可能多的 OSDs 来存储对象。 Monitors 自举是部署 Ceph 集群的第一步, Monitors 的部署也为整个集群设定了非常重要的条件，比如 Pools 副本数量， 每个 OSD 上的 PG 数， 心跳间隔、是否要求认证等等。 大多数的选项都被设置成默认值。\n\n 接下来我们会建立一个有 2 个 Monitor nodes 同时作为 OSDs nodes 的 Ceph 集群。\n 手动部署 Ceph 集群 \nMonitor 自举 \n 一个 Monitor 自举需要以下几个方面：\n\n 唯一标志符 ： fsid 是集群的的一个唯一标志符， 当  Ceph 用做 Ceph FileSystem 时，也代表着 文件系统 ID。现在 Ceph 支持原生接口，块设备，以及对象存储网关接口等等。所以 fsid 现有点用词不当。\n 集群名字 : Ceph 集群有一个集群名字，是一个没有空格的字符串。 默认的名字是 ceph， 可以指定一个不同的名字。当在管理多个集群时，给集群起一个名字是非常有用的，你需要明确指定你要操作的是哪个集群。 这里我们使用 amito 作为集群名字。\nMonitor 名字 : 每一个 monitor 实例都有一个唯一的名字，一般地， Ceph Monitor 名字就是 host 名字。官方推荐 Ceph 的 OSD 实例不要和 Monitor 在同一个 node 上。\nMonitor Map： 初始的 Monitors 自举要求我们生成一个 monitor map。 Monitor map 需要 fsid， 集群名字，还有至少一个节点名字与 IP 地址。\nMonitor Keyring: Ceph 中 Monitors 是使用 keyring 来进行认证的来互相通信的，所以需要一个 keyring, 我们需要生成提供一个 monitor secret。\nAdministrator Keyring: 管理节点也需要一个 keyring 来与集群交互, 使用的用户为 client.admin。\n\n 前面的要求并不是指 Ceph 配置文件的生成。但为了方便，官方建议创建一个 包含 fsid，mon initial members 和 mon host 的 Ceph 配置文件。步骤如下：\n\n 登陆到 初始 monitor 节点上 \n\n$ ssh mon-host\n\n\n 确保 /etc/ceph 文件夹存在, 安装 ceph 时会创建这一个文件夹。\n\n$ ls /etc/ceph\n\n\n 创建一个 Ceph 配置文件， 默认为 /etc/ceph/ceph.conf， 这里为 /etc/ceph/amito.conf\n\n$ sudo vim /etc/ceph/amito.conf\n\n\n 为集群生成一个唯一 ID (fsid)\n\n$ uuidgen > uuid.txt\n$ cat uuid.txt\n17e4176b-29c6-4479-bb8c-72e0918d908c\n\n\n 将这唯一 ID 加到 amito.conf 中。\n\nfsid = 17e4176b-29c6-4479-bb8c-72e0918d908c\n\n\n 添加初始 monitors 到 Ceph 配置文件中 \n\nmon initial members = node1, node2\n\n\n 添加初始 monitors 的 IPs 到 Ceph 配置文件中 \n\nmon host = 192.168.10.1, 10=92.168.10.2\n\n\n 为集群生成一个 keyring, 并生成一个 monitor secret key\n\n$ ceph-authtool --create-keyring /tmp/amito.mon.keyring --gen-key -n mon. -cap mon 'allow *'\n\n\n 生成一个 administrator keyring， 一个 client.admin 用户， 并加到 keyring 中 \n\n$ sudo ceph-authtool --create-keyring /etc/ceph/amito.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'\n\n\n 创建一个 bootstrap－osd keyring, 生成一个 bootstrap-osd 用户，并加到 keyring 中 \n\nsudo ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/amito.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd'\n\n\n 将生成的 keyrings 加到 amito.mon.keyring 中 \n\n$ sudo ceph-authtool /tmp/amito.mon.keyring --import-keyring /etc/ceph/amito.client.admin.keyring\n$ sudo ceph-authtool /tmp/amito.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/amito.keyring\n\n\n 使用  节点名 ，IP 地址 ， 和 fsid 生成一个 monitor map， 保存到 /tmp/monmap\n\n$ monmaptool --create --add {hostname} {ip-address} --fsid {uuid} /tmp/monmap\n### e.g.\n$ monmaptool --create --add node1 192.168.10.1 --fsid {uuid} /tmp/monmap\n$ monmaptool --add node2 192.168.10.2 --fsid {uuid} /tmp/monmap\n\n\n 在 monitor 节点上创建默认的数据文件夹 \n\n$ sudo mkdir -p /var/lib/ceph/mon/{cluster-name}-{hostname}\n### e.g.\n$ sudo mkdir -p /var/lib/ceph/mon/amito-node1\n\n\n 利用 monitor map 和 keyring 配置 Mon 节点.\n\n### usage:\n$ sudo ceph-mon [--cluster cluster-name] --mkfs -i {hostname}  --monmap  /tmp/monmap --keyring /tmp/ceph.mon.keyring\n### e.g.\n$ sudo ceph-mon --cluster amito --mkfs -i 192.168.10.1 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring\n\n\n 设置 Ceph 配置文件. 如下是一个例子.\n\n[global]\nfsid = 17e4176b-29c6-4479-bb8c-72e0918d908c\nmon initial members = node1\nmon host = 192.168.10.1\npublic network = 192.168.0.0/24\nauth cluster required = cephx\nauth service required = cephx\nauth client required = cephx\nosd journal size = 1024\nosd pool default size = 2\nosd pool default min size = 1\nosd pool default pg num = 256\nosd pool default pgp num = 256\nosd crush chooseleaf type = 1\n\n\n 创建完成文件. 标记 monitor 已经创建完并可以启动.\n\n### usage:\n$ sudo touch /var/lib/ceph/mon/{cluster-name}-{hostname}/done\n### e.g.\n$ sudo touch /var/lib/ceph/mon/amito-node1/done\n\n\n 启动 Ceph Monitor.\n\n### systemd\n$ sudo su -c 'echo \"CLUSTER={cluster-name}\" > /etc/sysconfig/ceph'\n$ sudo systemctl enable --now ceph-mon@{hostname}\n###　older debian, centos or rhel\n$ sudo /etc/init.d/ceph start mon.{hostname}\n### e.g.\n$ sudo systemctl enable --now ceph-mon@node1\n\n\n 查看 Ceph 集群状态.\n\n$ ceph -s\ncluster:\n  id:     17e4176b-29c6-4479-bb8c-72e0918d908c\n  health: HEALTH_OK\n\nservices:\n  mon: 2 daemons, quorum node1, node2\n  osd: 0 osds: 0 up, 0 in\n\ndata:\n  pools:   0 pools, 0 pgs\n  objects: 0 objects, 0 bytes\n  usage:   0 kB used, 0 kB / 0 kB avail\n  pgs:\n\n 设置 Ceph Manager\n\n 生成一个认证 Key\n\n$ name={hostname}\n$ ceph --cluster amito auth get-or-create mgr.$name mon 'allow profile mgr' osd 'allow *' mds 'allow *'\n\n 将 生成的 Key 放在 mgr data 文件夹, 一般是在 /var/lib/ceph/mgr/{cluster-name}-{name}\n2. 启动 ceph-mgr:\n$ sudo ceph-mgr -i $name\n\n\n 查看 mgr 状态:\n\n$ ceph -s\n...\nmgr status: ${name}\n\n 一般为了高可用, 每个 mon 节点都应该运行一个 mgr 进程.\n 添加 OSD\n 在初始 monitors 开始运行后, 我们就该添加 OSDs 到 集群中了. 集群只有在有足够的 OSDs 来处理对象副本数量时才会达到 active+clean 状态.\n 自动模式 \nBLUSTORE\n\n 创建 OSD: 联合模式 \n\n$ ssh node1\n$ sudo ceph-volume lvm create --data {data-path}\n### e.g.\n$ sudo ceph-volume lvm create --data /dev/sdb1\n\n\n 创建 OSD: 分裂模式 \n\n#### 1. prepare osd\n$ sudo ceph-volume lvm prepare --data {data-path}\n$ sudo ceph-volume lvm list\n### e.g.\n$ sudo ceph-volume lvm prepare --data /dev/sdb2\n#### 2. activate osd\n$ sudo ceph-volume lvm activate {ID} {FSID}\n### e.g\n$ sudo ceph-volume lvm activate 1 17e4176b-29c6-4479-bb8c-72e0918d908c\n\nFILESTORE\n\n 创建 OSD: 联合模式 \n\n$ ssh node1\n$ sudo ceph-volume lvm create --filestore --data {data-path}\n### e.g.\n$ sudo ceph-volume lvm create --filestore --data /dev/sdb3\n\n\n 创建 OSD: 分裂模式 \n\n#### 1. prepare osd\n$ sudo ceph-volume lvm prepare --filestore --data {data-path}\n$ sudo ceph-volume lvm list\n### e.g.\n$ sudo ceph-volume lvm prepare --filestore --data /dev/sdb4\n#### 2. activate osd\n$ sudo ceph-volume lvm activate {ID} {FSID}\n### e.g\n$ sudo ceph-volume lvm activate 4 17e4176b-29c6-4479-bb8c-72e0918d908c\n\n 手动模式 \n\n 登陆到 OSD 节点:\n\n$ ssh node1\n$ sudo bash\n\n\n 生成一个 UUID\n\n$ uuidgen > osd.uuid.txt\n$ cat osd.uuid.txt\n\n\n 创建一个 CephX key:\n\n$ OSD_SECRET=$(ceph-authtool --get-print-key)\n\n\n 创建 OSD.\n\nID=$(echo \"{\\\"cephx_secret\\\": \\\"$OSD_SECRET\\\"}\" | \\\n   ceph osd new $UUID -i - \\\n   -n client.bootstrap-osd -k /var/lib/ceph/bootstrap-osd/ceph.keyring) \n\n\n 创建 OSD 目录文件.\n\n$ mkdir /var/lib/ceph/osd/ceph-$ID\n\n 添加 MDS\n\n 创建 MDS 数据文件夹. id 为任意名字, 一般取为 hostname.\n\n$ mkdir -p /var/lib/ceph/mds/{cluster-name}-{id}\n\n\n 生成 Keyring.\n\n$ ceph-authtool --create-keyring /var/lib/ceph/mds/{cluster-name}-{id}/keyring --gen-key -n mds.{id}\n\n\n 导入 Key 并设置 caps.\n\nceph auth add mds.{id} osd \"allow rwx\" mds \"allow\" mon \"allow profile mds\" -i /var/lib/ceph/mds/{cluster}-{id}/keyring\n\n\n 将设置写入 Ceph 配置文件 \n\n[mds.{id}]\nhost = {id}\n\n\n 手动启动 mds\n\n### usage:\n$ ceph-mds --cluster {cluster-name} -i {id} -m {mon-hostname}:{mon-port} [-f]\n### e.g.\n$ ceph-mds --cluster ceph -i node1 -m {mon-hostname}:{mon-port} -f\n\n\n 或者使用 systemd 或者 sysinitv 启动:\n\n### usage:\nsudo systemctl enable --now ceph-mds@id\n7. 安装 Ceph FileSystem\n\n 总结 \n 在设置了 monitor, manager 和 OSDs 后, 可以查看 Ceph 集群的状态:\n$ ceph -s\n$ ceph -w\n$ ceph osd tree\n\n 重命名 Ceph 集群 \n 通过上面的手动创建过程可以看到, Ceph 集群名字更多是一个标志名, 没有进行硬编码. 所以可以对 Ceph 集群进行重命名. 具体过程就是将所有的文件夹和文件重命名, 例如从 ceph 到 remote.  改完后重启整个集群.\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-30T13:56:23+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-30T13:56:23+08:00","description":"Ceph 提供了 ceph-deploy 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。","headline":"手动部署一个 Ceph 存储集群","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/","keywords":"Ceph, Linux","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="Ceph 提供了 ceph-deploy 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。">
+<meta name="keywords" content="Ceph,Linux">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="手动部署一个 Ceph 存储集群">
+<meta property="og:url" content="https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Ceph 提供了 ceph-deploy 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/ceph.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.718Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="手动部署一个 Ceph 存储集群">
+<meta name="twitter:description" content="Ceph 提供了 ceph-deploy 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。">
+<meta name="twitter:image" content="https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/ceph.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            手动部署一个 Ceph 存储集群
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-30T13:56:23+08:00">
+	
+		    9月 30, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph 提供了 <code>ceph-deploy</code> 工具可以很方便地部署一个 Ceph 集群，为了更好理解和管理 Ceph 集群， 我们也可以手动部署一个 Ceph 集群。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#手动部署 -Ceph- 集群"><span class="toc-text"> 手动部署 Ceph 集群 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Monitor- 自举"><span class="toc-text">Monitor 自举 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#设置 -Ceph-Manager"><span class="toc-text"> 设置 Ceph Manager</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#添加 -OSD"><span class="toc-text"> 添加 OSD</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#自动模式"><span class="toc-text"> 自动模式 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#BLUSTORE"><span class="toc-text">BLUSTORE</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#FILESTORE"><span class="toc-text">FILESTORE</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#手动模式"><span class="toc-text"> 手动模式 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#添加 -MDS"><span class="toc-text"> 添加 MDS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#总结"><span class="toc-text"> 总结 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#重命名 -Ceph- 集群"><span class="toc-text"> 重命名 Ceph 集群 </span></a></li></ol>
+<p> 所有的 Ceph 集群都心须有一个 monitor，然后有尽可能多的 OSDs 来存储对象。 Monitors 自举是部署 Ceph 集群的第一步, Monitors 的部署也为整个集群设定了非常重要的条件，比如 Pools 副本数量， 每个 OSD 上的 PG 数， 心跳间隔、是否要求认证等等。 大多数的选项都被设置成默认值。</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="ceph.png" alt=""></div>
+<p> 接下来我们会建立一个有 2 个 Monitor nodes 同时作为 OSDs nodes 的 Ceph 集群。</p>
+<h2 id="手动部署 -Ceph- 集群"> 手动部署 Ceph 集群 </h2>
+<h3 id="Monitor- 自举">Monitor 自举 </h3>
+<p> 一个 Monitor 自举需要以下几个方面：</p>
+<ul>
+<li><strong> 唯一标志符 </strong>： <code>fsid</code> 是集群的的一个唯一标志符， 当  Ceph 用做 Ceph FileSystem 时，也代表着 文件系统 ID。现在 Ceph 支持原生接口，块设备，以及对象存储网关接口等等。所以 <code>fsid</code> 现有点用词不当。</li>
+<li><strong> 集群名字 </strong>: Ceph 集群有一个集群名字，是一个没有空格的字符串。 默认的名字是 <code>ceph</code>， 可以指定一个不同的名字。当在管理多个集群时，给集群起一个名字是非常有用的，你需要明确指定你要操作的是哪个集群。 这里我们使用 <code>amito</code> 作为集群名字。</li>
+<li><strong>Monitor 名字 </strong>: 每一个 monitor 实例都有一个唯一的名字，一般地， Ceph Monitor 名字就是 host 名字。官方推荐 Ceph 的 OSD 实例不要和 Monitor 在同一个 node 上。</li>
+<li><strong>Monitor Map</strong>： 初始的 Monitors 自举要求我们生成一个 monitor map。 Monitor map 需要 <code>fsid</code>， 集群名字，还有至少一个节点名字与 IP 地址。</li>
+<li><strong>Monitor Keyring</strong>: Ceph 中 Monitors 是使用 keyring 来进行认证的来互相通信的，所以需要一个 keyring, 我们需要生成提供一个 monitor secret。</li>
+<li><strong>Administrator Keyring</strong>: 管理节点也需要一个 keyring 来与集群交互, 使用的用户为 <code>client.admin</code>。</li>
+</ul>
+<p> 前面的要求并不是指 Ceph 配置文件的生成。但为了方便，官方建议创建一个 包含 <code>fsid</code>，<code>mon initial members</code> 和 <code>mon host</code> 的 Ceph 配置文件。步骤如下：</p>
+<ol>
+<li> 登陆到 初始 monitor 节点上 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh mon-host
+</code></pre>
+<ol start="2">
+<li> 确保 <code>/etc/ceph</code> 文件夹存在, 安装 ceph 时会创建这一个文件夹。</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ls /etc/ceph
+</code></pre>
+<ol start="3">
+<li> 创建一个 Ceph 配置文件， 默认为 <code>/etc/ceph/ceph.conf</code>， 这里为 <code>/etc/ceph/amito.conf</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo vim /etc/ceph/amito.conf
+</code></pre>
+<ol start="4">
+<li> 为集群生成一个唯一 ID (fsid)</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ uuidgen > uuid.txt
+$ cat uuid.txt
+17e4176b-29c6-4479-bb8c-72e0918d908c
+</code></pre>
+<ol start="5">
+<li> 将这唯一 ID 加到 <code>amito.conf</code> 中。</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">fsid = 17e4176b-29c6-4479-bb8c-72e0918d908c
+</code></pre>
+<ol start="6">
+<li> 添加初始 monitors 到 Ceph 配置文件中 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">mon initial members = node1, node2
+</code></pre>
+<ol start="7">
+<li> 添加初始 monitors 的 IPs 到 Ceph 配置文件中 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">mon host = 192.168.10.1, 10=92.168.10.2
+</code></pre>
+<ol start="8">
+<li> 为集群生成一个 keyring, 并生成一个 monitor secret key</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph-authtool --create-keyring /tmp/amito.mon.keyring --gen-key -n mon. -cap mon 'allow *'
+</code></pre>
+<ol start="9">
+<li> 生成一个 <code>administrator</code> keyring， 一个 <code>client.admin</code> 用户， 并加到 keyring 中 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo ceph-authtool --create-keyring /etc/ceph/amito.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'
+</code></pre>
+<ol start="10">
+<li> 创建一个 <code>bootstrap－osd</code> keyring, 生成一个 <code>bootstrap-osd</code> 用户，并加到 keyring 中 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/amito.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd'
+</code></pre>
+<ol start="11">
+<li> 将生成的 keyrings 加到 <code>amito.mon.keyring</code> 中 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo ceph-authtool /tmp/amito.mon.keyring --import-keyring /etc/ceph/amito.client.admin.keyring
+$ sudo ceph-authtool /tmp/amito.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/amito.keyring
+</code></pre>
+<ol start="12">
+<li> 使用 <code> 节点名 </code>，<code>IP 地址 </code>， 和 <code>fsid</code> 生成一个 <code>monitor map</code>， 保存到 <code>/tmp/monmap</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ monmaptool --create --add {hostname} {ip-address} --fsid {uuid} /tmp/monmap
+### e.g.
+$ monmaptool --create --add node1 192.168.10.1 --fsid {uuid} /tmp/monmap
+$ monmaptool --add node2 192.168.10.2 --fsid {uuid} /tmp/monmap
+</code></pre>
+<ol start="13">
+<li> 在 monitor 节点上创建默认的数据文件夹 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /var/lib/ceph/mon/{cluster-name}-{hostname}
+### e.g.
+$ sudo mkdir -p /var/lib/ceph/mon/amito-node1
+</code></pre>
+<ol start="14">
+<li> 利用 monitor map 和 keyring 配置 Mon 节点.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ sudo ceph-mon [--cluster cluster-name] --mkfs -i {hostname}  --monmap  /tmp/monmap --keyring /tmp/ceph.mon.keyring
+### e.g.
+$ sudo ceph-mon --cluster amito --mkfs -i 192.168.10.1 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+</code></pre>
+<ol start="15">
+<li> 设置 Ceph 配置文件. 如下是一个例子.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[global]
+fsid = 17e4176b-29c6-4479-bb8c-72e0918d908c
+mon initial members = node1
+mon host = 192.168.10.1
+public network = 192.168.0.0/24
+auth cluster required = cephx
+auth service required = cephx
+auth client required = cephx
+osd journal size = 1024
+osd pool default size = 2
+osd pool default min size = 1
+osd pool default pg num = 256
+osd pool default pgp num = 256
+osd crush chooseleaf type = 1
+</code></pre>
+<ol start="16">
+<li> 创建完成文件. 标记 monitor 已经创建完并可以启动.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ sudo touch /var/lib/ceph/mon/{cluster-name}-{hostname}/done
+### e.g.
+$ sudo touch /var/lib/ceph/mon/amito-node1/done
+</code></pre>
+<ol start="17">
+<li> 启动 Ceph Monitor.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### systemd
+$ sudo su -c 'echo "CLUSTER={cluster-name}" > /etc/sysconfig/ceph'
+$ sudo systemctl enable --now ceph-mon@{hostname}
+###　older debian, centos or rhel
+$ sudo /etc/init.d/ceph start mon.{hostname}
+### e.g.
+$ sudo systemctl enable --now ceph-mon@node1
+</code></pre>
+<ol start="18">
+<li> 查看 Ceph 集群状态.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph -s
+cluster:
+  id:     17e4176b-29c6-4479-bb8c-72e0918d908c
+  health: HEALTH_OK
+
+services:
+  mon: 2 daemons, quorum node1, node2
+  osd: 0 osds: 0 up, 0 in
+
+data:
+  pools:   0 pools, 0 pgs
+  objects: 0 objects, 0 bytes
+  usage:   0 kB used, 0 kB / 0 kB avail
+  pgs:
+</code></pre>
+<h3 id="设置 -Ceph-Manager"> 设置 Ceph Manager</h3>
+<ol>
+<li> 生成一个认证 Key</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ name={hostname}
+$ ceph --cluster amito auth get-or-create mgr.$name mon 'allow profile mgr' osd 'allow *' mds 'allow *'
+</code></pre>
+<p> 将 生成的 Key 放在 mgr data 文件夹, 一般是在 <code>/var/lib/ceph/mgr/{cluster-name}-{name}</code><br>
+2. 启动 ceph-mgr:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo ceph-mgr -i $name
+</code></pre>
+<ol start="3">
+<li> 查看 mgr 状态:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph -s
+...
+mgr status: ${name}
+</code></pre>
+<p> 一般为了高可用, 每个 mon 节点都应该运行一个 mgr 进程.</p>
+<h3 id="添加 -OSD"> 添加 OSD</h3>
+<p> 在初始 monitors 开始运行后, 我们就该添加 OSDs 到 集群中了. 集群只有在有足够的 OSDs 来处理对象副本数量时才会达到 <code>active+clean</code> 状态.</p>
+<h4 id="自动模式"> 自动模式 </h4>
+<h4 id="BLUSTORE">BLUSTORE</h4>
+<ol>
+<li> 创建 OSD: 联合模式 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh node1
+$ sudo ceph-volume lvm create --data {data-path}
+### e.g.
+$ sudo ceph-volume lvm create --data /dev/sdb1
+</code></pre>
+<ol start="2">
+<li> 创建 OSD: 分裂模式 </li>
+</ol>
+<pre><code>#### 1. prepare osd
+$ sudo ceph-volume lvm prepare --data {data-path}
+$ sudo ceph-volume lvm list
+### e.g.
+$ sudo ceph-volume lvm prepare --data /dev/sdb2
+#### 2. activate osd
+$ sudo ceph-volume lvm activate {ID} {FSID}
+### e.g
+$ sudo ceph-volume lvm activate 1 17e4176b-29c6-4479-bb8c-72e0918d908c
+</code></pre>
+<h4 id="FILESTORE">FILESTORE</h4>
+<ol>
+<li> 创建 OSD: 联合模式 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh node1
+$ sudo ceph-volume lvm create --filestore --data {data-path}
+### e.g.
+$ sudo ceph-volume lvm create --filestore --data /dev/sdb3
+</code></pre>
+<ol start="2">
+<li> 创建 OSD: 分裂模式 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">#### 1. prepare osd
+$ sudo ceph-volume lvm prepare --filestore --data {data-path}
+$ sudo ceph-volume lvm list
+### e.g.
+$ sudo ceph-volume lvm prepare --filestore --data /dev/sdb4
+#### 2. activate osd
+$ sudo ceph-volume lvm activate {ID} {FSID}
+### e.g
+$ sudo ceph-volume lvm activate 4 17e4176b-29c6-4479-bb8c-72e0918d908c
+</code></pre>
+<h4 id="手动模式"> 手动模式 </h4>
+<ol>
+<li> 登陆到 OSD 节点:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh node1
+$ sudo bash
+</code></pre>
+<ol start="2">
+<li> 生成一个 UUID</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ uuidgen > osd.uuid.txt
+$ cat osd.uuid.txt
+</code></pre>
+<ol start="3">
+<li> 创建一个 CephX key:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ OSD_SECRET=$(ceph-authtool --get-print-key)
+</code></pre>
+<ol start="4">
+<li> 创建 OSD.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">ID=$(echo "{\"cephx_secret\": \"$OSD_SECRET\"}" | \
+   ceph osd new $UUID -i - \
+   -n client.bootstrap-osd -k /var/lib/ceph/bootstrap-osd/ceph.keyring) 
+</code></pre>
+<ol start="5">
+<li> 创建 OSD 目录文件.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir /var/lib/ceph/osd/ceph-$ID
+</code></pre>
+<h3 id="添加 -MDS"> 添加 MDS</h3>
+<ol>
+<li> 创建 MDS 数据文件夹. id 为任意名字, 一般取为 hostname.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir -p /var/lib/ceph/mds/{cluster-name}-{id}
+</code></pre>
+<ol start="2">
+<li> 生成 Keyring.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph-authtool --create-keyring /var/lib/ceph/mds/{cluster-name}-{id}/keyring --gen-key -n mds.{id}
+</code></pre>
+<ol start="3">
+<li> 导入 Key 并设置 caps.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph auth add mds.{id} osd "allow rwx" mds "allow" mon "allow profile mds" -i /var/lib/ceph/mds/{cluster}-{id}/keyring
+</code></pre>
+<ol start="4">
+<li> 将设置写入 Ceph 配置文件 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[mds.{id}]
+host = {id}
+</code></pre>
+<ol start="5">
+<li> 手动启动 mds</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+$ ceph-mds --cluster {cluster-name} -i {id} -m {mon-hostname}:{mon-port} [-f]
+### e.g.
+$ ceph-mds --cluster ceph -i node1 -m {mon-hostname}:{mon-port} -f
+</code></pre>
+<ol start="6">
+<li> 或者使用 <code>systemd</code> 或者 <code>sysinitv</code> 启动:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### usage:
+sudo systemctl enable --now ceph-mds@id
+7. 安装 Ceph FileSystem
+</code></pre>
+<h3 id="总结"> 总结 </h3>
+<p> 在设置了 monitor, manager 和 OSDs 后, 可以查看 Ceph 集群的状态:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph -s
+$ ceph -w
+$ ceph osd tree
+</code></pre>
+<h2 id="重命名 -Ceph- 集群"> 重命名 Ceph 集群 </h2>
+<p> 通过上面的手动创建过程可以看到, Ceph 集群名字更多是一个标志名, 没有进行硬编码. 所以可以对 Ceph 集群进行重命名. 具体过程就是将所有的文件夹和文件重命名, 例如从 <code>ceph</code> 到 <code>remote</code>.  改完后重启整个集群.</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    data-tooltip="Ceph 文件系统 CephFS 的介绍与配置"
+                    aria-label="上一篇: Ceph 文件系统 CephFS 的介绍与配置"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Crontab-in-Linux/"
+                    data-tooltip="在 Linux 中使用 Cron 执行定时任务"
+                    aria-label="下一篇: 在 Linux 中使用 Cron 执行定时任务"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/CephFS-Introduction-Installation-and-Configuration/"
+                    data-tooltip="Ceph 文件系统 CephFS 的介绍与配置"
+                    aria-label="上一篇: Ceph 文件系统 CephFS 的介绍与配置"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-Crontab-in-Linux/"
+                    data-tooltip="在 Linux 中使用 Cron 执行定时任务"
+                    aria-label="下一篇: 在 Linux 中使用 Cron 执行定时任务"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Deploy-A-Ceph-Cluster-Manually/';
+              
+            this.page.identifier = '2018/Deploy-A-Ceph-Cluster-Manually/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

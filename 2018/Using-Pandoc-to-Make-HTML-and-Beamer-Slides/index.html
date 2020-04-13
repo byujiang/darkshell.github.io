@@ -1,0 +1,1023 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>使用 Pandoc 来制作 HTML 和 beamer 风格的幻灯片 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。\n\n\n\nPandoc - 格式转换利器\nPandoc 是全平台的转换工具，在命令行能够很方便的进行格式转换。 Pandoc 支持的格式及转换方式如下图所示。\n\n更多的可以打开  这里 查看，可以看到 Pandoc 支持的格式是极多的。\nPandoc 的安装是非常简单的， 可按照 说明 很方便地安装到系统中。\n文档语法结构\nPandoc 支持标准的 Markdown 语法，但在结构上与一般的用 Markdown 写博客有点区别。\n元数据\n为了让 Pandoc 能渲染 Markdown 文件生成 Slides， 需要在文档头部加上几行元数据信息。\n% Title\n% Author\n% Tate\n\n这样就能生成幻灯片的标题页了。\n文档结构\n一般情况下，一个 Markdown 文档只有一个一级标题。 Pandoc 中，默认情况下，一级标题代表 一个章节， 三个一级标题就是把幻灯片分为三部分；二级标题代表一张幻灯片； 三级标题则一般是幻灯片内部的块。 一个基本的文档结构如下所示\n% Title\n% Author\n% Tate\n\n# Part I\n## slide I\n- list 1\n- list 2\n\n## slide II\n1. list 1\n2. list 2\n\n# Part II\n## slide III\n[amito](amito.me)\n## slide IV\n![picture](pic.png)\n\n数学公式\nPandoc 支持转换 TeX 数学公式， 能够将数学公式转换成 MathML， 或者通过 MathJax 显示。\n$\\frac{a}{b^2+c^3}$\n\n$$\\frac{a}{b^2+c^3}$$\n\n显示效果为：$\\frac{a}{b2+c3}$\n$$\\frac{a}{b2+c3}$$\n幻灯片样式\n在 /usr/share/pandoc-xxx/data 下面有 Pandoc 自带的转换模版， html 幻灯片模版有 dszlides, html, html5, revealjs, s5, slideous, slidy 等等。下面简单介绍几种。\ns5\ns5 是很流行的 HTML 幻灯片模版，可以从网站上下载后使用，也可以在线使用。本地使用主要是其中的 ui/default, 将其复制到 markdown 所在目录。在线使用需要指定 s5-url\n#### local\n$ pandoc -s -t s5 -o s5.html s5.md\n#### online\n$ pandoc -s -t s5 -V s5-url=https://cdn.docbook.org/release/xsl-nons/current/slides/s5/ui/default/ -o s5.html s5.md\n\nreveal.js\nreveal.js 是非常火的 HTML 幻灯片库，本身支持 Markdown 语法。 离线使用 reveal.js 需要将其下载下来，在线使用可以指定 revealjs-url。\n下载 reveal.js\n$ git clone https://github.com/hakimel/reveal.js\n\n渲染 markdown 文件生成 HTML 幻灯片，在线使用可以通过指定 revealjs-url 来使用。\n$ pandoc -s -t revealjs -o h5.html h5.md\n$ pandoc -s -t revealjs -V revealjs-url=https://cdnjs.com/libraries/reveal.js/3.6.0 -o h5.htmnl h5.md\n\nreveal.js 自带了一些模版可供选择，通过 -V css=/path/to/css 来指定自带的或自己定制的模版，\n#### local\n$ pandoc -s -t revealjs -V css=reveal.js/css/theme/night.css -o h5.html h5.md\n#### online\nurl=\"https://cdnjs.com/libraries/reveal.js/3.6.0/\"\n$ pandoc -s -t revealjs -V revealjs-url=$url -V css=$url/css/theme/night.css -V -o h5.html h5.md\n\n也可以修改 reveal.js 模版 /usr/share/pandoc-xxx/data/templates/default.revealjs。\n$if(css)$\n$for(css)$\n    \n$endfor$\n$else$\n    \n$endif$\n\n改为\n$if(css)$\n$for(css)$\n    \n$endfor$\n$endif$\n$if(theme)$\n    \n$else$\n    \n$endif$\n\n这样就可以简单指定 theme 了。\n$ pandoc -s -t revealjs -V theme=night -o h5.html h5.md\n\nBeamer 样式\nPandoc 能非常方便地将 markdown 转换为独立的 tex 文档，然后通过 tex 命令 可以生成 pdf 幻灯片。\n$ pandoc -s -t beamer -o slide.tex slide.md\n$ latexmk -pdf slide.tex\n\nBeamer 模版\nPandoc 有默认的 beamer 模版，使用 platex 编译，如果不喜欢，可以参考默认模版 /usr/share/pandoc-xxx/data/templates/default.beamer 自己定制一个 beamer 模版，网上也有一些现成的模版，可以参考。\n下面是默认模版生成的幻灯片样式。\n\n中文字体\n\n首先查看系统中文字体：\n\n$ fc-list :lang=zh\n\n\n转换时指定字体：\n\n$ pandoc -s -t beamer --pdf-engine=xelatex -V CJKmainfont=KaiTi srs.md -o srs.pdf\n\n\nMarkdown 文件中加入设置。默认的 beamer 模版中有 CJKmainfont 变量，指定后会使用 xeCJK 包：\n\n---\nCJKmainfont: STSong\nCJKoptions:\n  - BoldFont=STHeiti\n  - ItalicFont=STKaiti\n---\n\n\n定制模版，这是比较方便的一种方式，能更改的地方也更多，这里  是我根据  网上 模版修改过的。\n\n参考\n\nMarkdown+Pandoc→HTML 幻灯片速成\npandoc does not recognize Chinese characters\nPandoc Demo\nTalks with LaTeX Beamer, written in Markdown\nPDF slides and handouts using Pandoc and Beamer\nUser contributed templates\n用 pandoc 把 markdown 转化为 pdf 文档\n纯文本做笔记 — 使用 Pandoc 与 Markdown 生成 PDF 文件\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-12-28T13:06:46+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-12-28T13:06:46+08:00","description":"Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。","headline":"使用 Pandoc 来制作 HTML 和 beamer 风格的幻灯片","image":["pandoc.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/","keywords":"LaTeX, Beamer, Pandoc","thumbnailUrl":"pandoc.png"}</script>
+    <meta name="description" content="Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。">
+<meta name="keywords" content="LaTeX,Beamer,Pandoc">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="使用 Pandoc 来制作 HTML 和 beamer 风格的幻灯片">
+<meta property="og:url" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/pandoc.png">
+<meta property="og:image" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/beamer.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.744Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 Pandoc 来制作 HTML 和 beamer 风格的幻灯片">
+<meta name="twitter:description" content="Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。">
+<meta name="twitter:image" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/pandoc.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/pandoc.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/pandoc.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            使用 Pandoc 来制作 HTML 和 beamer 风格的幻灯片
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-12-28T13:06:46+08:00">
+	
+		    12月 28, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/LaTeX/">LaTeX</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Pandoc 是一款开源的文档格式转换工具，能够实现大部分的文件格式互转。这里我们主要用来将 Markdown 文档转换成 HTML 和 PDF 风格的幻灯片。 Markdown 语法、结构简单，只需要写出文档的提纲和结构，就能转换成简洁明了又美观的 Slides。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Pandoc- 格式转换利器"><span class="toc-text">Pandoc - 格式转换利器</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#文档语法结构"><span class="toc-text">文档语法结构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#元数据"><span class="toc-text">元数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#文档结构"><span class="toc-text">文档结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#数学公式"><span class="toc-text">数学公式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#幻灯片样式"><span class="toc-text">幻灯片样式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#s5"><span class="toc-text">s5</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#reveal-js"><span class="toc-text">reveal.js</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Beamer- 样式"><span class="toc-text">Beamer 样式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Beamer- 模版"><span class="toc-text">Beamer 模版</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#中文字体"><span class="toc-text">中文字体</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考"><span class="toc-text">参考</span></a></li></ol>
+<h2 id="Pandoc- 格式转换利器">Pandoc - 格式转换利器</h2>
+<p>Pandoc 是全平台的转换工具，在命令行能够很方便的进行格式转换。 Pandoc 支持的格式及转换方式如下图所示。</p>
+<div class="figure center" style="width:60%;"><img class="fig-img" src="pandoc.png" style="width:60%;" alt=""></div>
+<p>更多的可以打开 <a href="/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/pandoc.jpg"> 这里</a> 查看，可以看到 Pandoc 支持的格式是极多的。</p>
+<p>Pandoc 的安装是非常简单的， 可按照 <a href="http://johnmacfarlane.net/pandoc/installing.html" target="_blank" rel="noopener">说明</a> 很方便地安装到系统中。</p>
+<h2 id="文档语法结构">文档语法结构</h2>
+<p>Pandoc 支持标准的 Markdown 语法，但在结构上与一般的用 Markdown 写博客有点区别。</p>
+<h3 id="元数据">元数据</h3>
+<p>为了让 Pandoc 能渲染 Markdown 文件生成 Slides， 需要在文档头部加上几行元数据信息。</p>
+<pre class=" language-language-markdown"><code class="language-language-markdown">% Title
+% Author
+% Tate
+</code></pre>
+<p>这样就能生成幻灯片的标题页了。</p>
+<h3 id="文档结构">文档结构</h3>
+<p>一般情况下，一个 Markdown 文档只有一个一级标题。 Pandoc 中，默认情况下，一级标题代表 一个章节， 三个一级标题就是把幻灯片分为三部分；二级标题代表一张幻灯片； 三级标题则一般是幻灯片内部的块。 一个基本的文档结构如下所示</p>
+<pre class=" language-language-markdown"><code class="language-language-markdown">% Title
+% Author
+% Tate
+
+# Part I
+## slide I
+- list 1
+- list 2
+
+## slide II
+1. list 1
+2. list 2
+
+# Part II
+## slide III
+[amito](amito.me)
+## slide IV
+![picture](pic.png)
+</code></pre>
+<h3 id="数学公式">数学公式</h3>
+<p>Pandoc 支持转换 TeX 数学公式， 能够将数学公式转换成 MathML， 或者通过 MathJax 显示。</p>
+<pre class=" language-language-tex"><code class="language-language-tex">$\frac{a}{b^2+c^3}$
+
+$$\frac{a}{b^2+c^3}$$
+</code></pre>
+<p>显示效果为：$\frac{a}{b<sup>2+c</sup>3}$<br>
+$$\frac{a}{b<sup>2+c</sup>3}$$</p>
+<h2 id="幻灯片样式">幻灯片样式</h2>
+<p>在 <code>/usr/share/pandoc-xxx/data</code> 下面有 Pandoc 自带的转换模版， html 幻灯片模版有 <code>dszlides</code>, <code>html</code>, <code>html5</code>, <code>revealjs</code>, <code>s5</code>, <code>slideous</code>, <code>slidy</code> 等等。下面简单介绍几种。</p>
+<h3 id="s5">s5</h3>
+<p><a href="http://meyerweb.com/eric/tools/s5/" target="_blank" rel="noopener">s5</a> 是很流行的 HTML 幻灯片模版，可以从网站上下载后使用，也可以在线使用。本地使用主要是其中的 <code>ui/default</code>, 将其复制到 markdown 所在目录。在线使用需要指定 <code>s5-url</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">#### local
+$ pandoc -s -t s5 -o s5.html s5.md
+#### online
+$ pandoc -s -t s5 -V s5-url=https://cdn.docbook.org/release/xsl-nons/current/slides/s5/ui/default/ -o s5.html s5.md
+</code></pre>
+<h3 id="reveal-js">reveal.js</h3>
+<p>reveal.js 是非常火的 HTML 幻灯片库，本身支持 Markdown 语法。 离线使用 reveal.js 需要将其下载下来，在线使用可以指定 <code>revealjs-url</code>。<br>
+下载 <a href="https://github.com/hakimel/reveal.js" target="_blank" rel="noopener">reveal.js</a></p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ git clone https://github.com/hakimel/reveal.js
+</code></pre>
+<p>渲染 markdown 文件生成 HTML 幻灯片，在线使用可以通过指定 <code>revealjs-url</code> 来使用。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pandoc -s -t revealjs -o h5.html h5.md
+$ pandoc -s -t revealjs -V revealjs-url=https://cdnjs.com/libraries/reveal.js/3.6.0 -o h5.htmnl h5.md
+</code></pre>
+<p>reveal.js 自带了一些模版可供选择，通过 <code>-V css=/path/to/css</code> 来指定自带的或自己定制的模版，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">#### local
+$ pandoc -s -t revealjs -V css=reveal.js/css/theme/night.css -o h5.html h5.md
+#### online
+url="https://cdnjs.com/libraries/reveal.js/3.6.0/"
+$ pandoc -s -t revealjs -V revealjs-url=$url -V css=$url/css/theme/night.css -V -o h5.html h5.md
+</code></pre>
+<p>也可以修改 reveal.js 模版 <code>/usr/share/pandoc-xxx/data/templates/default.revealjs</code>。</p>
+<pre class=" language-language-html"><code class="language-language-html">$if(css)$
+$for(css)$
+    <link rel="stylesheet" href="$css$"/>
+$endfor$
+$else$
+    <link rel="stylesheet" href="$revealjs-url$/css/theme/simple.css" id="theme">
+$endif$
+</code></pre>
+<p>改为</p>
+<pre class=" language-language-html"><code class="language-language-html">$if(css)$
+$for(css)$
+    <link rel="stylesheet" href="$revealjs-url$/css/theme/$css$"/>
+$endfor$
+$endif$
+$if(theme)$
+    <link rel="stylesheet" href="$revealjs-url$/css/theme/$theme$.css" id="theme">
+$else$
+    <link rel="stylesheet" href="$revealjs-url$/css/theme/simple.css" id="theme">
+$endif$
+</code></pre>
+<p>这样就可以简单指定 <code>theme</code> 了。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pandoc -s -t revealjs -V theme=night -o h5.html h5.md
+</code></pre>
+<h2 id="Beamer- 样式">Beamer 样式</h2>
+<p>Pandoc 能非常方便地将 markdown 转换为独立的 tex 文档，然后通过 tex 命令 可以生成 pdf 幻灯片。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pandoc -s -t beamer -o slide.tex slide.md
+$ latexmk -pdf slide.tex
+</code></pre>
+<h3 id="Beamer- 模版">Beamer 模版</h3>
+<p>Pandoc 有默认的 beamer 模版，使用 platex 编译，如果不喜欢，可以参考默认模版 <code>/usr/share/pandoc-xxx/data/templates/default.beamer</code> 自己定制一个 beamer 模版，网上也有一些现成的模版，可以参考。<br>
+下面是默认模版生成的幻灯片样式。</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="beamer.png" alt=""></div>
+<h3 id="中文字体">中文字体</h3>
+<ol>
+<li>首先查看系统中文字体：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ fc-list :lang=zh
+</code></pre>
+<ol start="2">
+<li>转换时指定字体：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ pandoc -s -t beamer --pdf-engine=xelatex -V CJKmainfont=KaiTi srs.md -o srs.pdf
+</code></pre>
+<ol start="3">
+<li>Markdown 文件中加入设置。默认的 beamer 模版中有 <code>CJKmainfont</code> 变量，指定后会使用 <code>xeCJK</code> 包：</li>
+</ol>
+<pre><code>---
+CJKmainfont: STSong
+CJKoptions:
+  - BoldFont=STHeiti
+  - ItalicFont=STKaiti
+---
+</code></pre>
+<ol start="4">
+<li>定制模版，这是比较方便的一种方式，能更改的地方也更多，<a href="https://github.com/darkshell/beamer/blob/master/themes/ponde.tex" target="_blank" rel="noopener">这里 </a> 是我根据 <a href="https://github.com/cympfh/beamer" target="_blank" rel="noopener"> 网上</a> 模版修改过的。</li>
+</ol>
+<h2 id="参考">参考</h2>
+<ol>
+<li><a href="https://linux.cn/article-4080-1.html" target="_blank" rel="noopener">Markdown+Pandoc→HTML 幻灯片速成</a></li>
+<li><a href="https://stackoverflow.com/questions/40892725/pandoc-does-not-recognize-chinese-characters" target="_blank" rel="noopener">pandoc does not recognize Chinese characters</a></li>
+<li><a href="https://pandoc.org/demos.html" target="_blank" rel="noopener">Pandoc Demo</a></li>
+<li><a href="https://nval.andreasherten.de/2016/01/26/latex-beamer-with-markdown.html" target="_blank" rel="noopener">Talks with LaTeX Beamer, written in Markdown</a></li>
+<li><a href="https://bl.ocks.org/lmullen/c3d4c7883f081ed8692a" target="_blank" rel="noopener">PDF slides and handouts using Pandoc and Beamer</a></li>
+<li><a href="https://github.com/jgm/pandoc/wiki/User-contributed-templates" target="_blank" rel="noopener">User contributed templates</a></li>
+<li><a href="http://www.bagualu.net/wordpress/archives/5396" target="_blank" rel="noopener">用 pandoc 把 markdown 转化为 pdf 文档</a></li>
+<li><a href="https://jdhao.github.io/2017/12/10/pandoc-markdown-with-chinese/" target="_blank" rel="noopener">纯文本做笔记 — 使用 Pandoc 与 Markdown 生成 PDF 文件</a></li>
+</ol>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Beamer/">Beamer</a> <a class="tag tag--primary tag--small t-link" href="/tags/LaTeX/">LaTeX</a> <a class="tag tag--primary tag--small t-link" href="/tags/Pandoc/">Pandoc</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Convert-An-Instance-to-An-Image-in-OpenStack/"
+                    data-tooltip="在 OpenStack 中将虚拟机实例转成启动镜像"
+                    aria-label="上一篇: 在 OpenStack 中将虚拟机实例转成启动镜像"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Generating-A-Self-Signed-SSL-Certificate-for-Nginx/"
+                    data-tooltip="为 Nginx 创建自签名的 SSL 证书"
+                    aria-label="下一篇: 为 Nginx 创建自签名的 SSL 证书"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Convert-An-Instance-to-An-Image-in-OpenStack/"
+                    data-tooltip="在 OpenStack 中将虚拟机实例转成启动镜像"
+                    aria-label="上一篇: 在 OpenStack 中将虚拟机实例转成启动镜像"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Generating-A-Self-Signed-SSL-Certificate-for-Nginx/"
+                    data-tooltip="为 Nginx 创建自签名的 SSL 证书"
+                    aria-label="下一篇: 为 Nginx 创建自签名的 SSL 证书"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/';
+              
+            this.page.identifier = '2018/Using-Pandoc-to-Make-HTML-and-Beamer-Slides/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

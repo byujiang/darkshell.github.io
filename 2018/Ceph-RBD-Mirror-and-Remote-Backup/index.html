@@ -1,0 +1,1329 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Ceph RBD 镜像功能与异地备份 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"从 2015 年的 Jewel 版本开始, Ceph 引入了 RBD 的  Mirror 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.\n\n\n\nCeph RBD 镜像\nRBD 的镜像功能是一种在两个及以上 Ceph 集群间异步副本功能。 镜像功能保证了对一个 iamge 做的更改在所有副本上保持时间点的一致性， 包括读写、块设备大小调整、快照、克隆和扁平化等等。镜像功能可以以 主 - 备  或  主 - 主  两种模式运行。使用强制的独占锁和 RBD 的日志功能， RBD 顺序记录了对一个 image 做的所有操作。 这保证了远端的镜像有一个灾难一致性的镜像可以使用。因此， 在镜像一个 image 之前， 必须要启用它的日志功能。\n要保证 镜像功能 可用，本地和远端的CRUSH 架构最好要保持一致的容量和性能特征，此外还要两者之间的网络带宽要足够， 网络延迟要尽可能小以避免超时。\n\nrbd-mirror 守护进程\nRBD 的镜像功能是由 rbd-mirror 守护进程实现的，其负责将 images 从一个 Ceph 集群同步到另一个。 根据副本类型， rbd-mirror 运行在单个或所有参与镜像的集群上。\n\n\n单向副本 。 数据从一个主集群同步到一个或多个备份集群上， rbd-mirror 只运行在备份集群上。 在 active-passive 模式下， RBD 镜像有多个备份站点。\n双向副本 。 数据在两个 Ceph 集群之间互相同步，不分主次。 两个集群都必须运行 rbd-mirror。 目前，这种双向副本，或者 主 - 主  模式，只支持在两个站点之间同步。\nrbd-mirror 由 rbd-mirror 包提供。 每个 Ceph 集群只能有一个 rbd-mirror 在运行。\n\n\n镜像模式\nRBD 镜像是基于 Pool 的。 Ceph 支持两种模式， 由一个 Pool 中的哪些 images 镜像决定。\n\n\nPool 模式。 这种模式下，Pool 内的所有 images 都必须启用日志功能。\nImage 模式。只有 Pool 中开启日志功能的 images 才会被镜像。\n在 主 - 备 模式下，被镜像的 images 有两种状态：\n主：可以被修改\n备：不可以被修改\nimage 在被设置成 mirroring 模式时，就自动进入 主  状态。 将  主状态降级或将  备升级都是可能的。\n\n开启日志功能\n我们可以在新建一个 image 时或已经存在的 image 上开启 日志  特性， 同时要开启的还有  独占锁 特性。\n## Usage: when creating a new image\n[ceph@ceph0 ~]$ rbd create {pool-name}/{image-name} --size {image-size} --image-feature {feature-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd create volumes/data --size 1024 --image-feature exclusive-lock,journaling\n## Usage: on an existing image\n[ceph@ceph0 ~]$ rbd feature enable {pool-name}/{image-name} {feature-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd feature enable volumes/data exclusive-lock,journaling\n\n要是想让所有新建的 image 都开启 journaling 特性， 将下面的徽墨加到 Ceph 配置里面：\nrbd default feature = 125\n\nPool 配置\n以下的操作需要在所有的 同等集群上进行。\n\n启用 Pool 的 镜像功能\n\n## Usage\n[ceph@ceph0 ~]$ rbd mirror pool enable {pool-name} {mode}\n## e.g. enable pool mode\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool\n## e.g. enble image mode\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes image\n\n\n禁用 Pool 的 镜像功能\n\n## Usage\n[ceph@ceph0 ~]$ rbd mirror pool disable {pool-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror pool disable volumes\n\n在禁用 镜像功能前， 要移除 Peer 集群。 禁用 Pool 的镜像功能，也就禁用了所有 images 的镜像功能。\n3. 增加一个集群 Peer\n## Usage\n[ceph@ceph0 ~]$ rbd mirror pool peer add {pool-name} {client-name}@{cluster-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd --cluster local mirror pool peer add data client.remote@remote\n[ceph@ceph0 ~]$ rbd --cluster remote mirror pool peer add data client.local@local\n\n\n查看 Peer 信息\n\n## Usage\n[ceph@ceph0 ~]$ rbd mirror pool info {pool-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror pool info data\nEnabled: true\nPeers:\nUUID                 NAME           CLIENT\npeer-uuid            ceph-remote    client.admin\n\n\n移除一个 Peer\n\n[ceph@ceph0 ~]$ rbd mirror pool peer remove {pool-name} {peer-uuid}\n\n需要明确指定 Pool 名字和 Peer 的 UUID。\n6. 获取 Pool 的 镜像状态\n## Usage\n[ceph@ceph0 ~]$ rbd mirror pool status {pool-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror pool status data\nhealth: OK\nimges: 1 total\n\n想要更多信息， 可加上 --verbose 选项。\nImage 配置\nimage 模式下，下面的操作只在一个集群上运行。\n\n启用 image 镜像\n对一个 image 启用镜像：\n\n\n在所有的 peer 集群上对所在的 Pool 启用镜像功能。\n显示指定该 image 启用镜像功能。\n\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image enable {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image enable volumes/data\n\n\n禁用 image 镜像功能\n\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image disable {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image disable volumes/data\n\n\nImage 升级与降级\n\n### DEMOTION\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image demote volumes/data\n\n### PROMOTION\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image promote volumes/data\n\n这一操作主要是用在 灾难恢复 中.\n当降级不能传递到 peer 集群时，利用 --force 选项强制升级一个 image, 例如由于集群错误或者交流超时等等。\n4. Image 重新同步\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image resync {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image resync volumes/data\n\n当两个集群之间数据不一致时， rbd-mirror 不会试图去镜像导致不一致的 image。 这时可用 resync 来重新同步。\n5. 获取单个 image 的镜像状态\n## Usage\n[ceph@ceph0 ~]$ rbd mirror image status {pool-name}/{image-name}\n## e.g.\n[ceph@ceph0 ~]$ rbd mirror image status volumes/data\ndata:\n\tglobal_id:    image-uuid\n\tstate:        up+replaying\n\tdescription:  some description here\n\tlast_update:  time last update\n\n配置 Ceph 集群之间的镜像\n配置单向镜像模式\n单向镜像模式即一个主集群同步副本到一个或多个次级集群. 主集群镜像牌 主 (primary) 模式; 次级集群镜像处于  非主(non-primary) 模式, 只能读, 不能写. 单向模式适合维护一个镜像的灾难一致性副本, 但不适合与 OpenStack 结合时次级集群镜像的自动灾难重建等情况, 这时需要双向模式.\n\n两个正在运行的 Ceph 集群: 将镜像从 local 集群备份到 remote 集群. 配置文件分别为 local.conf 和 remote.conf. 若两个集群名字相同, 需要做额外的工作. 见 在相同名字的集群之间配置镜像\n一个能够连接到 local 集群的客户端 - client.local.\n在两个集群上创建相同的 pool, 比如 volumes.\n想要镜像的 pool - volumes 中有想要镜像的 image, 并且 journaling 功能已经启用.\n前面说过, 有两种镜像块设备的方式:\nPool 镜像模式\nImage 镜像模式\n\n配置 Pool 镜像模式\n\n保证 volumes 中的所有 images 都开启了 exclusive lock 和 journaling 特性.\n在 remote 集群上的 monitor 节点上, 安装 rbd-mirror. 确保集群中只有一个 rbd-mirror 实例运行.\n\n[ceph@ceph0 ~]$ sudo yum install -y rbd-mirror\n\n\n在两个 集群上, 使用 CLUSTER 特别指定参与镜像的两个集群名字.\n\nCLUSTER=local\nCLUSTER=remote\n\n\n在两个集群上, 创建能够访问 volumes 池的客户端, 并存储它们的 keyring 到 &lt;cluster-name&gt;.client.&lt;user-name&gt;.keyring.\n\n\n在 local 集群的 monitor 节点, 创建 client.local.\n\n[ceph@ceph0 ~]$ ceph auth get-or-create client.local 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/ceph.client.local.keyring --cluster local\n\n\n在 remote 集群的 monitor 节点, 创建 client.remote.\n\n[ceph@ceph0 ~]$ ceph auth get-or-create client.remote 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/ceph.client.remote.keyring --cluster remote\n\n\n将 local 集群上的 Ceph 配置文件和 新生成的 keyring 文件 拷贝到 remote 集群和 remote 集群的客户端节点上.\n\n[ceph@ceph0 ~]$ scp /etc/ceph/local.conf @:/etc/ceph/\n[ceph@ceph0 ~]$ scp /etc/ceph/ceph.client.local.keyring @:/etc/ceph/\n\n[ceph@ceph0 ~]$ scp /etc/ceph/local.conf @:/etc/ceph/\n[ceph@ceph0 ~]$ scp /etc/ceph/ceph.client.local.keyring @:/etc/ceph/\n\n\n在 remote 集群的 monitor 节点上, 启用并启动 rbd-mirror 守护进程.\n\n[ceph@ceph-remote ~]$ sudo systemctl enable ceph-rbd-mirror.target\n[ceph@ceph-remote ~]$ sudo systemctl enable --now ceph-rbd-mirror@\n\n这里, &lt;client-id&gt; 是指的 rbd-mirror 运行使用的用户, 此处即 remote.\n7. 在 local 和 remote 两个集群上启用 pool mirroring.\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster remote\n\n确保 local 和 remote 集群的 mirroring 功能已成功启用.\n[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster remote\n\n\n将 local 集群加入到 remote 集群的 peer 中.\n\n[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote\n[ceph@ceph0 ~]$ rbd mirror info volumes --cluster remote\nMode: pool\nPeers:\nUUID                      NAME       CLIENT\nlocal-cluster-uuid        local      client.local\n\n配置 Image 镜像模式\n\n确保需要 镜像的 images 开启了 exclusive lock 和 journaling 特性.\n依循 配置 Pool 镜像模式 中的 2-5 步.\n开启 local 集群上 volumes 的 image 镜像功能.\n\n[ceph@ceph0 ~]$ rbd --cluster local mirror pool enable volumes image\n[ceph@ceph0 ~]$ rbd mirror pool info --cluster local\n\n\n将 local 集群 加到 remote 集群的 peer 中.\n\n[ceph@ceph0 ~]$ rbd --cluster remote mirror pool peer add volumes client.local@local\n[ceph@ceph0 ~]$ rbd --cluster remote mirror pool info\nMode: pool\nPeers:\nUUID               NAME          CLIENT\nlocal-cluster-uuid local         client.local\n\n\n在 local 集群上, 显示启用 images 如 image1 的 image 镜像功能.\n\n[ceph@ceph0 ~]$ rbd --cluster local mirror image enable volumes/image1\n\n确保镜像功能已经成功启用.\n[ceph@ceph0 ~]$ rbd mirror image status volumes/image1 --cluster local\nimage1:\n\tglobal_id:   image-uuid\n\tstate:       up+replayingn\n\tdescription: replaying, master_position=[xxxxx], mirror_position=[xxxxx], entries_behind_master=0\n\tlast_update: last_update_time\n[ceph@ceph0 ~]$ rbd mirror image status volumes/image1 --cluster remote\nimage1:\n\tglobal_id:   image-uuid\n\tstate:       up+replayingn\n\tdescription: replaying, master_position=[xxxxx], mirror_position=[xxxxx], entries_behind_master=0\n\tlast_update: last_update_time\n\n配置双向镜像模式\n配置双向模式的下列步骤假定:\n\n有两个正在运行的 Ceph 集群 - local 和 remote, 相应的配置文件在 /etc/ceph/local.conf 和 /etc/ceph/remote.conf. 如果两个集群名字相同, 需要做额外的工作, 见 在相同名字的集群之间配置镜像\n有一个 块设备 客户端连接到两个集群 - client.local 和 client.remote.\n要镜像的 Pool - volumes 在两个集群中都有.\n要镜像的 Pool volumes 包含着要镜像的 images, 要开启了 journaling 特性.\n\n配置 Pool 镜像模式\n\n在双方客户端上, 安装 rbd-mirror.\n\n[ceph@ceph0 ~]$ sudo yum install -y rbd-mirror\n\n\n在双方客户端节点上, 在 /etc/sysconfig/ceph 里用 CLUSTER 特别指定集群名字.\n\nCLUSTER=local\nCLUSTER=remote\n\n\n在双方集群上, 创建能够访问 volumes 的客户端并输出其 keyring.\n\n\n在 local 集群的 monitor 节点上, 创建 client.local.\n\n[ceph@ceph0 ~]$ ceph auth get-or-create client.local mon 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/local.client.local.keyring --cluster local\n\n\n在 remote 集群的 monitor 节点上, 创建 client.remote.\n\n[ceph@ceph0 ~]$ ceph auth get-or-create client.remote mon 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/local.client.remote.keyring --cluster remote\n\n\n拷贝双方的 Ceph 配置文件和生成的 keyring 拷贝到对方的 monitor 节点上.\n\n\n拷贝 local.conf 和 local.client.local.keyring 到 remote 集群的 monitor 节点上.\n\n[ceph@ceph-local ~]$ scp /etc/ceph/local.conf ceph@ceph-remote:/etc/ceph\n[ceph@ceph-local ~]$ scp /etc/ceph/local.client.local.keyring ceph@ceph-remote:/etc/ceph\n\n\n拷贝 remote.conf 和 remote.client.remote.conf 到 local 集群的 monitor 节点上.\n\n[ceph@ceph-local ~]$ scp ceph@ceph-remote:/etc/ceph/remote.conf /etc/ceph/\n[ceph@ceph-local ~]$ scp ceph@ceph-remote:/etc/ceph/remote.client.remote.keyring /etc/ceph/\n\n\n如果 local 集群上 monitor 跟 mirroring 守护进程不在 = 同一个节点上, 需要 拷贝 local.client.local.keyring 到运行 rbd-mirroring 的节点上. remote 集群也一样.\n\n[ceph@ceph-local ~]$ scp /etc/ceph/local.client.local.keyring ceph@ceph-local-mirror:/etc/ceph/\n[ceph@ceph-remote ~]$ scp /etc/ceph/remote.client.remote.keyring ceph@ceph-remote-mirror:/etc/ceph/\n\n\n在双方客户端节点上, 启用并启动 rbd-mirror守护进程.\n\n[ceph@ceph0 ~]$ sudo systemctl enable ceph-rbd-mirror.target\n[ceph@ceph0 ~]$ sudo systemctl enable --now ceph-rbd-mirror@\n\n&lt;client-id&gt; 这里即 local, remote.\n7. 启用两个集群 volumes 上的 pool mirroring, 并确保启用成功.\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster remote\n[ceph@ceph0 ~]$ rbd mirror pool status volumes --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool status volumes --cluster remote\n\n\n将双方互相加为 peer, 并确保添加成功.\n\n[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote\n[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.remote@remote --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster local\n...\n[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster remote\n\n配置 Image 镜像模式\n\n依循 配置 Pool 镜像模式 中的 1-5 步.\n在双方的 volumes pool 上启用 image 镜像模式, 并确保成功.\n\n[ceph@ceph0 ~]$ rbd --cluster local mirror pool enable volumes image\n[ceph@ceph0 ~]$ rbd --cluster remote mirror pool enable volumes image\n[ceph@ceph0 ~]$ rbd --cluster local mirror pool status volumes\n[ceph@ceph0 ~]$ rbd --cluster remote mirror pool status volumes.\n\n\n互相添加为 peer, 并确保成功.\n\n[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote\n[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.remote@remote --cluster local\n[ceph@ceph0 ~]$ rbd mirror pool info --cluster local\n[ceph@ceph0 ~]@ rbd mirror pool info --cluster remote\n\n\n在主集群上, 显示启用 images image1 的 image 镜像功能.\n\n[ceph@ceph0 ~]$ rbd --cluster local mirror image enable volumes/image1\n[ceph@ceph0 ~]$ rbd --cluster local mirror image status volumes/image1\n...\n[ceph@ceph0 ~]$ rbd --cluster remote mirror image status volumes/image1\n...\n\n在相同名字的集群之间配置镜像\n有时候集群管理者会使用相同的名字, 一般是 ceph 创建集群. 当两个集群名字相同时, 目前要执行如下的步骤.\n\n在 rbd-mirror 执行一端的集群上的 /etc/sysconfig/ceph 中更改集群的名字如 master.\n同时建立一个指向 ceph.conf 的符号链接.\n\n[ceph@ceph0 ~]$ ln -sf /etc/ceph/ceph.conf /etc/ceph/master.conf\n\n\n使用每次 rbd-mirror 配置过程中都使用 符号链接文件 master.conf.\n\n[ceph@ceph0 ~]$ ceph -s\n[ceph@ceph0 ~]$ ceph -s --cluster master\n\n现在两个命令都指向同一个集群.\n延迟副本模式\n无论使用单向还是双向副本模式， 我们都可以在 RBD image 镜像时设置延迟，这样我们就有一个时间窗口来撤销一些作用在主要 iamge 上的并不想要的改变。\n要实现这样的延迟副本， 目标集群上的 rbd-mirror 守护进程需要设置 rbd mirroring replay delay = {minimum delay in seconds}。这可以通过 ceph.conf 作用在所有 Pools 上， 也可以单独作用在 一些 images 上。\n## Usage\n[ceph@ceph0 ~]$ rbd image-meta set {pool-name}/{image-name} conf_rbd_mirroring_replay_delay {minimum delay in seconds}\n## e.g.\n[ceph@ceph0 ~]$ rbd image-meta set volumes/data conf_rbd_mirroring_replay_delay 600\n\n利用 Ceph 集群镜像进行灾难数据恢复\n从一次正常关机进行故障转移\n\n关掉所有正在使用 主 image 的客户端. 这取决于哪种客户端在使用 image.\n将 local 集群上的 主 image 降级.\n\n[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster local\n\n\n将 remote 集群的 非主 image 升级.\n\n[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}/{image-name} --cluster remote\n\n\n重新让客户端连接新的 主 image. 同样取决于使用的客户端.\n\n从一次非正常关机进行故障转移\n\n确认主集群(local cluster) 已经关闭.\n停止所有使用主 image 的客户端. 这取决于哪种客户端在使用 image.\n将远端的 非主状态的 image 升级为  主 image, 使用 --force选项.\n\n[ceph@ceph0 ~]$ rbd mirror image promote --force {pool-name}/{image-name} --cluster remote\n\n\n重新让客户端连接新的 主 image. 同样取决于使用的客户端.\n\n故障恢复\n当以前的主集群恢复后, 需要行故障恢复.\n\n如果是非正常关机, 将 local 集群上的旧的主 image 降级.\n\n[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster local\n\n\n只有在非正常关机时才重新同步 image.\n\n[ceph@ceph0 ~]$ rbd mirror image resync {pool-name}/{image-name} --cluster local\n\n\n保证 重新同步 完成, 并处于 up+replaying 状态.\n\n[ceph@ceph0 ~]$ rbd mirror image status {pool-name}/{image-name} --cluster local\n\n\n将次级集群上的 image 降级.\n\n[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster remote\n\n\n将主集群上的 image 升级.\n\n[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}{image-name} --cluster local\n\n利用镜像更新实例\n…to.be.continued…\nOpenStack 实现\n…to.be.continued…\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-20T14:27:54+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-20T14:27:54+08:00","description":"从 2015 年的 Jewel 版本开始, Ceph 引入了 RBD 的  Mirror 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.","headline":"Ceph RBD 镜像功能与异地备份","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/","keywords":"Ceph, RBD","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="从 2015 年的 Jewel 版本开始, Ceph 引入了 RBD 的  Mirror 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.">
+<meta name="keywords" content="Ceph,RBD">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Ceph RBD 镜像功能与异地备份">
+<meta property="og:url" content="https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="从 2015 年的 Jewel 版本开始, Ceph 引入了 RBD 的  Mirror 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.716Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ceph RBD 镜像功能与异地备份">
+<meta name="twitter:description" content="从 2015 年的 Jewel 版本开始, Ceph 引入了 RBD 的  Mirror 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Ceph RBD 镜像功能与异地备份
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-20T14:27:54+08:00">
+	
+		    9月 20, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>从 2015 年的 <code>Jewel</code> 版本开始, Ceph 引入了 RBD 的  <code>Mirror</code> 功能, 其主要目的是对 Ceph 进行异地防灾备份和故障自动恢复.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Ceph-RBD- 镜像"><span class="toc-text">Ceph RBD 镜像</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#开启日志功能"><span class="toc-text">开启日志功能</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Pool- 配置"><span class="toc-text">Pool 配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Image- 配置"><span class="toc-text">Image 配置</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -Ceph- 集群之间的镜像"><span class="toc-text">配置 Ceph 集群之间的镜像</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置单向镜像模式"><span class="toc-text">配置单向镜像模式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#配置 -Pool- 镜像模式"><span class="toc-text">配置 Pool 镜像模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#配置 -Image- 镜像模式"><span class="toc-text">配置 Image 镜像模式</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置双向镜像模式"><span class="toc-text">配置双向镜像模式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#配置 -Pool- 镜像模式 -v2"><span class="toc-text">配置 Pool 镜像模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#配置 -Image- 镜像模式 -v2"><span class="toc-text">配置 Image 镜像模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#在相同名字的集群之间配置镜像"><span class="toc-text">在相同名字的集群之间配置镜像</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#延迟副本模式"><span class="toc-text">延迟副本模式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#利用 -Ceph- 集群镜像进行灾难数据恢复"><span class="toc-text">利用 Ceph 集群镜像进行灾难数据恢复</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#从一次正常关机进行故障转移"><span class="toc-text">从一次正常关机进行故障转移</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#从一次非正常关机进行故障转移"><span class="toc-text">从一次非正常关机进行故障转移</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#故障恢复"><span class="toc-text">故障恢复</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#利用镜像更新实例"><span class="toc-text">利用镜像更新实例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#OpenStack- 实现"><span class="toc-text">OpenStack 实现</span></a></li></ol>
+<h2 id="Ceph-RBD- 镜像">Ceph RBD 镜像</h2>
+<p>RBD 的镜像功能是一种在两个及以上 Ceph 集群间异步副本功能。 镜像功能保证了对一个 iamge 做的更改在所有副本上保持时间点的一致性， 包括读写、块设备大小调整、快照、克隆和扁平化等等。镜像功能可以以 <code>主 - 备 </code> 或 <code> 主 - 主 </code> 两种模式运行。使用强制的独占锁和 RBD 的日志功能， RBD 顺序记录了对一个 image 做的所有操作。 这保证了远端的镜像有一个灾难一致性的镜像可以使用。因此， 在镜像一个 image 之前， 必须要启用它的日志功能。</p>
+<p>要保证 <code>镜像功能</code> 可用，本地和远端的<code>CRUSH</code> 架构最好要保持一致的容量和性能特征，此外还要两者之间的网络带宽要足够， 网络延迟要尽可能小以避免超时。</p>
+<ol>
+<li><code>rbd-mirror</code> 守护进程<br>
+RBD 的镜像功能是由 <code>rbd-mirror</code> 守护进程实现的，其负责将 images 从一个 Ceph 集群同步到另一个。 根据副本类型， <code>rbd-mirror</code> 运行在单个或所有参与镜像的集群上。</li>
+</ol>
+<ul>
+<li><strong>单向副本 </strong>。 数据从一个主集群同步到一个或多个备份集群上， <code>rbd-mirror</code> 只运行在备份集群上。 在 <code>active-passive</code> 模式下， RBD 镜像有多个备份站点。</li>
+<li><strong>双向副本 </strong>。 数据在两个 Ceph 集群之间互相同步，不分主次。 两个集群都必须运行 <code>rbd-mirror</code>。 目前，这种双向副本，或者<code> 主 - 主 </code> 模式，只支持在两个站点之间同步。<br>
+<code>rbd-mirror</code> 由 <code>rbd-mirror</code> 包提供。 每个 Ceph 集群只能有一个 <code>rbd-mirror</code> 在运行。</li>
+</ul>
+<ol start="2">
+<li>镜像模式<br>
+RBD 镜像是基于 Pool 的。 Ceph 支持两种模式， 由一个 Pool 中的哪些 images 镜像决定。</li>
+</ol>
+<ul>
+<li><strong>Pool 模式</strong>。 这种模式下，Pool 内的所有 images 都必须启用日志功能。</li>
+<li><strong>Image 模式</strong>。只有 Pool 中开启日志功能的 images 才会被镜像。<br>
+在 <code>主 - 备</code> 模式下，被镜像的 images 有两种状态：</li>
+<li>主：可以被修改</li>
+<li>备：不可以被修改<br>
+image 在被设置成 <code>mirroring</code> 模式时，就自动进入 <code>主 </code> 状态。 将 <code> 主</code>状态降级或将 <code> 备</code>升级都是可能的。</li>
+</ul>
+<h3 id="开启日志功能">开启日志功能</h3>
+<p>我们可以在新建一个 image 时或已经存在的 image 上开启 <code>日志 </code> 特性， 同时要开启的还有 <code> 独占锁</code> 特性。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage: when creating a new image
+[ceph@ceph0 ~]$ rbd create {pool-name}/{image-name} --size {image-size} --image-feature {feature-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd create volumes/data --size 1024 --image-feature exclusive-lock,journaling
+## Usage: on an existing image
+[ceph@ceph0 ~]$ rbd feature enable {pool-name}/{image-name} {feature-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd feature enable volumes/data exclusive-lock,journaling
+</code></pre>
+<p>要是想让所有新建的 image 都开启 <code>journaling</code> 特性， 将下面的徽墨加到 Ceph 配置里面：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd default feature = 125
+</code></pre>
+<h3 id="Pool- 配置">Pool 配置</h3>
+<p>以下的操作需要在所有的 同等集群上进行。</p>
+<ol>
+<li>启用 Pool 的 镜像功能</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror pool enable {pool-name} {mode}
+## e.g. enable pool mode
+[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool
+## e.g. enble image mode
+[ceph@ceph0 ~]$ rbd mirror pool enable volumes image
+</code></pre>
+<ol start="2">
+<li>禁用 Pool 的 镜像功能</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror pool disable {pool-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror pool disable volumes
+</code></pre>
+<p>在禁用 镜像功能前， 要移除 Peer 集群。 禁用 Pool 的镜像功能，也就禁用了所有 images 的镜像功能。<br>
+3. 增加一个集群 Peer</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror pool peer add {pool-name} {client-name}@{cluster-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd --cluster local mirror pool peer add data client.remote@remote
+[ceph@ceph0 ~]$ rbd --cluster remote mirror pool peer add data client.local@local
+</code></pre>
+<ol start="4">
+<li>查看 Peer 信息</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror pool info {pool-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror pool info data
+Enabled: true
+Peers:
+UUID                 NAME           CLIENT
+peer-uuid            ceph-remote    client.admin
+</code></pre>
+<ol start="5">
+<li>移除一个 Peer</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool peer remove {pool-name} {peer-uuid}
+</code></pre>
+<p>需要明确指定 Pool 名字和 Peer 的 UUID。<br>
+6. 获取 Pool 的 镜像状态</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror pool status {pool-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror pool status data
+health: OK
+imges: 1 total
+</code></pre>
+<p>想要更多信息， 可加上 <code>--verbose</code> 选项。</p>
+<h3 id="Image- 配置">Image 配置</h3>
+<p>image 模式下，下面的操作只在一个集群上运行。</p>
+<ol>
+<li>启用 image 镜像<br>
+对一个 image 启用镜像：</li>
+</ol>
+<ul>
+<li>在所有的 peer 集群上对所在的 Pool 启用镜像功能。</li>
+<li>显示指定该 image 启用镜像功能。</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror image enable {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image enable volumes/data
+</code></pre>
+<ol start="2">
+<li>禁用 image 镜像功能</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror image disable {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image disable volumes/data
+</code></pre>
+<ol start="3">
+<li>Image 升级与降级</li>
+</ol>
+<pre><code>### DEMOTION
+## Usage
+[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image demote volumes/data
+
+### PROMOTION
+## Usage
+[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image promote volumes/data
+</code></pre>
+<p>这一操作主要是用在 <code>灾难恢复</code> 中.<br>
+当降级不能传递到 peer 集群时，利用 <code>--force</code> 选项强制升级一个 image, 例如由于集群错误或者交流超时等等。<br>
+4. Image 重新同步</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror image resync {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image resync volumes/data
+</code></pre>
+<p>当两个集群之间数据不一致时， <code>rbd-mirror</code> 不会试图去镜像导致不一致的 image。 这时可用 <code>resync</code> 来重新同步。<br>
+5. 获取单个 image 的镜像状态</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd mirror image status {pool-name}/{image-name}
+## e.g.
+[ceph@ceph0 ~]$ rbd mirror image status volumes/data
+data:
+	global_id:    image-uuid
+	state:        up+replaying
+	description:  some description here
+	last_update:  time last update
+</code></pre>
+<h2 id="配置 -Ceph- 集群之间的镜像">配置 Ceph 集群之间的镜像</h2>
+<h3 id="配置单向镜像模式">配置单向镜像模式</h3>
+<p>单向镜像模式即一个主集群同步副本到一个或多个次级集群. 主集群镜像牌 <code>主 (primary)</code> 模式; 次级集群镜像处于 <code> 非主(non-primary)</code> 模式, 只能读, 不能写. 单向模式适合维护一个镜像的灾难一致性副本, 但不适合与 OpenStack 结合时次级集群镜像的自动灾难重建等情况, 这时需要双向模式.</p>
+<ul>
+<li>两个正在运行的 Ceph 集群: 将镜像从 <code>local</code> 集群备份到 <code>remote</code> 集群. 配置文件分别为 <code>local.conf</code> 和 <code>remote.conf</code>. 若两个集群名字相同, 需要做额外的工作. 见 <a href="#%E5%9C%A8%E7%9B%B8%E5%90%8C%E5%90%8D%E5%AD%97%E7%9A%84%E9%9B%86%E7%BE%A4%E4%B9%8B%E9%97%B4%E9%85%8D%E7%BD%AE%E9%95%9C%E5%83%8F">在相同名字的集群之间配置镜像</a></li>
+<li>一个能够连接到 <code>local</code> 集群的客户端 - <code>client.local</code>.</li>
+<li>在两个集群上创建相同的 pool, 比如 <code>volumes</code>.</li>
+<li>想要镜像的 pool - <code>volumes</code> 中有想要镜像的 image, 并且 <code>journaling</code> 功能已经启用.<br>
+前面说过, 有两种镜像块设备的方式:</li>
+<li>Pool 镜像模式</li>
+<li>Image 镜像模式</li>
+</ul>
+<h4 id="配置 -Pool- 镜像模式">配置 Pool 镜像模式</h4>
+<ol>
+<li>保证 <code>volumes</code> 中的所有 images 都开启了 <code>exclusive lock</code> 和 <code>journaling</code> 特性.</li>
+<li>在 remote 集群上的 <code>monitor</code> 节点上, 安装 <code>rbd-mirror</code>. 确保集群中只有一个 <code>rbd-mirror</code> 实例运行.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo yum install -y rbd-mirror
+</code></pre>
+<ol start="3">
+<li>在两个 集群上, 使用 <code>CLUSTER</code> 特别指定参与镜像的两个集群名字.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">CLUSTER=local
+CLUSTER=remote
+</code></pre>
+<ol start="4">
+<li>在两个集群上, 创建能够访问 <code>volumes</code> 池的客户端, 并存储它们的 keyring 到 <code>&lt;cluster-name&gt;.client.&lt;user-name&gt;.keyring</code>.</li>
+</ol>
+<ul>
+<li>在 local 集群的 monitor 节点, 创建 <code>client.local</code>.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-or-create client.local 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/ceph.client.local.keyring --cluster local
+</code></pre>
+<ul>
+<li>在 remote 集群的 monitor 节点, 创建 <code>client.remote</code>.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-or-create client.remote 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/ceph.client.remote.keyring --cluster remote
+</code></pre>
+<ol start="5">
+<li>将 <code>local</code> 集群上的 Ceph 配置文件和 新生成的 keyring 文件 拷贝到 remote 集群和 remote 集群的客户端节点上.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ scp /etc/ceph/local.conf <user>@<remote_mon_host-name>:/etc/ceph/
+[ceph@ceph0 ~]$ scp /etc/ceph/ceph.client.local.keyring <user>@<remote_mon-host-name>:/etc/ceph/
+
+[ceph@ceph0 ~]$ scp /etc/ceph/local.conf <user>@<remote_client-host-name>:/etc/ceph/
+[ceph@ceph0 ~]$ scp /etc/ceph/ceph.client.local.keyring <user>@<remote_client-host-name>:/etc/ceph/
+</code></pre>
+<ol start="6">
+<li>在 remote 集群的 monitor 节点上, 启用并启动 <code>rbd-mirror</code> 守护进程.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph-remote ~]$ sudo systemctl enable ceph-rbd-mirror.target
+[ceph@ceph-remote ~]$ sudo systemctl enable --now ceph-rbd-mirror@<client-id>
+</code></pre>
+<p>这里, <code>&lt;client-id&gt;</code> 是指的 <code>rbd-mirror</code> 运行使用的用户, 此处即 <code>remote</code>.<br>
+7. 在 local 和 remote 两个集群上启用 <code>pool mirroring</code>.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster remote
+</code></pre>
+<p>确保 local 和 remote 集群的 mirroring 功能已成功启用.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster remote
+</code></pre>
+<ol start="8">
+<li>将 local 集群加入到 <code>remote</code> 集群的 peer 中.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote
+[ceph@ceph0 ~]$ rbd mirror info volumes --cluster remote
+Mode: pool
+Peers:
+UUID                      NAME       CLIENT
+local-cluster-uuid        local      client.local
+</code></pre>
+<h4 id="配置 -Image- 镜像模式">配置 Image 镜像模式</h4>
+<ol>
+<li>确保需要 镜像的 images 开启了 <code>exclusive lock</code> 和 <code>journaling</code> 特性.</li>
+<li>依循 <a href="#%E9%85%8D%E7%BD%AE-Pool-%E9%95%9C%E5%83%8F%E6%A8%A1%E5%BC%8F">配置 Pool 镜像模式</a> 中的 <code>2-5</code> 步.</li>
+<li>开启 local 集群上 <code>volumes</code> 的 image 镜像功能.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd --cluster local mirror pool enable volumes image
+[ceph@ceph0 ~]$ rbd mirror pool info --cluster local
+</code></pre>
+<ol start="4">
+<li>将 local 集群 加到 remote 集群的 peer 中.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd --cluster remote mirror pool peer add volumes client.local@local
+[ceph@ceph0 ~]$ rbd --cluster remote mirror pool info
+Mode: pool
+Peers:
+UUID               NAME          CLIENT
+local-cluster-uuid local         client.local
+</code></pre>
+<ol start="5">
+<li>在 <code>local</code> 集群上, 显示启用 images 如 <code>image1</code> 的 image 镜像功能.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd --cluster local mirror image enable volumes/image1
+</code></pre>
+<p>确保镜像功能已经成功启用.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image status volumes/image1 --cluster local
+image1:
+	global_id:   image-uuid
+	state:       up+replayingn
+	description: replaying, master_position=[xxxxx], mirror_position=[xxxxx], entries_behind_master=0
+	last_update: last_update_time
+[ceph@ceph0 ~]$ rbd mirror image status volumes/image1 --cluster remote
+image1:
+	global_id:   image-uuid
+	state:       up+replayingn
+	description: replaying, master_position=[xxxxx], mirror_position=[xxxxx], entries_behind_master=0
+	last_update: last_update_time
+</code></pre>
+<h3 id="配置双向镜像模式">配置双向镜像模式</h3>
+<p>配置双向模式的下列步骤假定:</p>
+<ul>
+<li>有两个正在运行的 Ceph 集群 - <strong>local</strong> 和 <strong>remote</strong>, 相应的配置文件在 <code>/etc/ceph/local.conf</code> 和 <code>/etc/ceph/remote.conf</code>. 如果两个集群名字相同, 需要做额外的工作, 见 <a href="#%E5%9C%A8%E7%9B%B8%E5%90%8C%E5%90%8D%E5%AD%97%E7%9A%84%E9%9B%86%E7%BE%A4%E4%B9%8B%E9%97%B4%E9%85%8D%E7%BD%AE%E9%95%9C%E5%83%8F">在相同名字的集群之间配置镜像</a></li>
+<li>有一个 块设备 客户端连接到两个集群 - <code>client.local</code> 和 <code>client.remote</code>.</li>
+<li>要镜像的 Pool - <code>volumes</code> 在两个集群中都有.</li>
+<li>要镜像的 Pool <code>volumes</code> 包含着要镜像的 images, 要开启了 <code>journaling</code> 特性.</li>
+</ul>
+<h4 id="配置 -Pool- 镜像模式 -v2">配置 Pool 镜像模式</h4>
+<ol>
+<li>在双方客户端上, 安装 <code>rbd-mirror</code>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo yum install -y rbd-mirror
+</code></pre>
+<ol start="2">
+<li>在双方客户端节点上, 在 <code>/etc/sysconfig/ceph</code> 里用 <code>CLUSTER</code> 特别指定集群名字.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">CLUSTER=local
+CLUSTER=remote
+</code></pre>
+<ol start="3">
+<li>在双方集群上, 创建能够访问 <code>volumes</code> 的客户端并输出其 keyring.</li>
+</ol>
+<ul>
+<li>在 local 集群的 monitor 节点上, 创建 <code>client.local</code>.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-or-create client.local mon 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/local.client.local.keyring --cluster local
+</code></pre>
+<ul>
+<li>在 remote 集群的 monitor 节点上, 创建 <code>client.remote</code>.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph auth get-or-create client.remote mon 'profile rbd' osd 'profile rbd pool=volumes' -o /etc/ceph/local.client.remote.keyring --cluster remote
+</code></pre>
+<ol start="4">
+<li>拷贝双方的 Ceph 配置文件和生成的 <code>keyring</code> 拷贝到对方的 monitor 节点上.</li>
+</ol>
+<ul>
+<li>拷贝 <code>local.conf</code> 和 <code>local.client.local.keyring</code> 到 remote 集群的 monitor 节点上.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph-local ~]$ scp /etc/ceph/local.conf ceph@ceph-remote:/etc/ceph
+[ceph@ceph-local ~]$ scp /etc/ceph/local.client.local.keyring ceph@ceph-remote:/etc/ceph
+</code></pre>
+<ul>
+<li>拷贝 <code>remote.conf</code> 和 <code>remote.client.remote.conf</code> 到 local 集群的 monitor 节点上.</li>
+</ul>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph-local ~]$ scp ceph@ceph-remote:/etc/ceph/remote.conf /etc/ceph/
+[ceph@ceph-local ~]$ scp ceph@ceph-remote:/etc/ceph/remote.client.remote.keyring /etc/ceph/
+</code></pre>
+<ol start="5">
+<li>如果 local 集群上 monitor 跟 <code>mirroring</code> 守护进程不在 = 同一个节点上, 需要 拷贝 <code>local.client.local.keyring</code> 到运行 <code>rbd-mirroring</code> 的节点上. remote 集群也一样.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph-local ~]$ scp /etc/ceph/local.client.local.keyring ceph@ceph-local-mirror:/etc/ceph/
+[ceph@ceph-remote ~]$ scp /etc/ceph/remote.client.remote.keyring ceph@ceph-remote-mirror:/etc/ceph/
+</code></pre>
+<ol start="6">
+<li>在双方客户端节点上, 启用并启动 <code>rbd-mirror</code>守护进程.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo systemctl enable ceph-rbd-mirror.target
+[ceph@ceph0 ~]$ sudo systemctl enable --now ceph-rbd-mirror@<client-id>
+</code></pre>
+<p><code>&lt;client-id&gt;</code> 这里即 <code>local</code>, <code>remote</code>.<br>
+7. 启用两个集群 <code>volumes</code> 上的 <code>pool mirroring</code>, 并确保启用成功.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool enable volumes pool --cluster remote
+[ceph@ceph0 ~]$ rbd mirror pool status volumes --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool status volumes --cluster remote
+</code></pre>
+<ol start="8">
+<li>将双方互相加为 peer, 并确保添加成功.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote
+[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.remote@remote --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster local
+...
+[ceph@ceph0 ~]$ rbd mirror pool info volumes --cluster remote
+</code></pre>
+<h4 id="配置 -Image- 镜像模式 -v2">配置 Image 镜像模式</h4>
+<ol>
+<li>依循 <a href="#%E9%85%8D%E7%BD%AE-Pool-%E9%95%9C%E5%83%8F%E6%A8%A1%E5%BC%8F">配置 Pool 镜像模式</a> 中的 1-5 步.</li>
+<li>在双方的 <code>volumes</code> pool 上启用 image 镜像模式, 并确保成功.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd --cluster local mirror pool enable volumes image
+[ceph@ceph0 ~]$ rbd --cluster remote mirror pool enable volumes image
+[ceph@ceph0 ~]$ rbd --cluster local mirror pool status volumes
+[ceph@ceph0 ~]$ rbd --cluster remote mirror pool status volumes.
+</code></pre>
+<ol start="3">
+<li>互相添加为 peer, 并确保成功.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.local@local --cluster remote
+[ceph@ceph0 ~]$ rbd mirror pool peer add volumes client.remote@remote --cluster local
+[ceph@ceph0 ~]$ rbd mirror pool info --cluster local
+[ceph@ceph0 ~]@ rbd mirror pool info --cluster remote
+</code></pre>
+<ol start="4">
+<li>在主集群上, 显示启用 images <code>image1</code> 的 image 镜像功能.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd --cluster local mirror image enable volumes/image1
+[ceph@ceph0 ~]$ rbd --cluster local mirror image status volumes/image1
+...
+[ceph@ceph0 ~]$ rbd --cluster remote mirror image status volumes/image1
+...
+</code></pre>
+<h4 id="在相同名字的集群之间配置镜像">在相同名字的集群之间配置镜像</h4>
+<p>有时候集群管理者会使用相同的名字, 一般是 <code>ceph</code> 创建集群. 当两个集群名字相同时, 目前要执行如下的步骤.</p>
+<ol>
+<li>在 <code>rbd-mirror</code> 执行一端的集群上的 <code>/etc/sysconfig/ceph</code> 中更改集群的名字如 <code>master</code>.</li>
+<li>同时建立一个指向 <code>ceph.conf</code> 的符号链接.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ln -sf /etc/ceph/ceph.conf /etc/ceph/master.conf
+</code></pre>
+<ol start="3">
+<li>使用每次 <code>rbd-mirror</code> 配置过程中都使用 <strong>符号链接文件</strong> <code>master.conf</code>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph -s
+[ceph@ceph0 ~]$ ceph -s --cluster master
+</code></pre>
+<p>现在两个命令都指向同一个集群.</p>
+<h3 id="延迟副本模式">延迟副本模式</h3>
+<p>无论使用单向还是双向副本模式， 我们都可以在 RBD image 镜像时设置延迟，这样我们就有一个时间窗口来撤销一些作用在主要 iamge 上的并不想要的改变。<br>
+要实现这样的延迟副本， 目标集群上的 <code>rbd-mirror</code> 守护进程需要设置 <code>rbd mirroring replay delay = {minimum delay in seconds}</code>。这可以通过 <code>ceph.conf</code> 作用在所有 Pools 上， 也可以单独作用在 一些 images 上。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">## Usage
+[ceph@ceph0 ~]$ rbd image-meta set {pool-name}/{image-name} conf_rbd_mirroring_replay_delay {minimum delay in seconds}
+## e.g.
+[ceph@ceph0 ~]$ rbd image-meta set volumes/data conf_rbd_mirroring_replay_delay 600
+</code></pre>
+<h2 id="利用 -Ceph- 集群镜像进行灾难数据恢复">利用 Ceph 集群镜像进行灾难数据恢复</h2>
+<h3 id="从一次正常关机进行故障转移">从一次正常关机进行故障转移</h3>
+<ol>
+<li>关掉所有正在使用 主 image 的客户端. 这取决于哪种客户端在使用 image.</li>
+<li><strong>将 local 集群上的 主 image 降级</strong>.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster local
+</code></pre>
+<ol start="3">
+<li>将 remote 集群的 非主 image 升级.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}/{image-name} --cluster remote
+</code></pre>
+<ol start="4">
+<li>重新让客户端连接新的 主 image. 同样取决于使用的客户端.</li>
+</ol>
+<h3 id="从一次非正常关机进行故障转移">从一次非正常关机进行故障转移</h3>
+<ol>
+<li><strong>确认主集群(local cluster) 已经关闭</strong>.</li>
+<li>停止所有使用主 image 的客户端. 这取决于哪种客户端在使用 image.</li>
+<li>将远端的 非主状态的 image 升级为 <strong> 主 image</strong>, 使用 <code>--force</code>选项.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image promote --force {pool-name}/{image-name} --cluster remote
+</code></pre>
+<ol start="4">
+<li>重新让客户端连接新的 主 image. 同样取决于使用的客户端.</li>
+</ol>
+<h3 id="故障恢复">故障恢复</h3>
+<p>当以前的主集群恢复后, 需要行故障恢复.</p>
+<ol>
+<li>如果是非正常关机, 将 <code>local</code> 集群上的旧的主 image 降级.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster local
+</code></pre>
+<ol start="2">
+<li>只有在非正常关机时才重新同步 image.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image resync {pool-name}/{image-name} --cluster local
+</code></pre>
+<ol start="3">
+<li>保证 <code>重新同步</code> 完成, 并处于 <strong>up+replaying</strong> 状态.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image status {pool-name}/{image-name} --cluster local
+</code></pre>
+<ol start="4">
+<li>将次级集群上的 image 降级.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image demote {pool-name}/{image-name} --cluster remote
+</code></pre>
+<ol start="5">
+<li>将主集群上的 image 升级.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ rbd mirror image promote {pool-name}{image-name} --cluster local
+</code></pre>
+<h3 id="利用镜像更新实例">利用镜像更新实例</h3>
+<p>…to.be.continued…</p>
+<h2 id="OpenStack- 实现">OpenStack 实现</h2>
+<p>…to.be.continued…</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/RBD/">RBD</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/HTCondor-Introduction-Installation-and-Configuration/"
+                    data-tooltip="HTCondor - 介绍, 安装与配置"
+                    aria-label="上一篇: HTCondor - 介绍, 安装与配置"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-RBD-in-Ceph/"
+                    data-tooltip="Ceph 中块设备 RBD 的基本用法"
+                    aria-label="下一篇: Ceph 中块设备 RBD 的基本用法"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/HTCondor-Introduction-Installation-and-Configuration/"
+                    data-tooltip="HTCondor - 介绍, 安装与配置"
+                    aria-label="上一篇: HTCondor - 介绍, 安装与配置"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-RBD-in-Ceph/"
+                    data-tooltip="Ceph 中块设备 RBD 的基本用法"
+                    aria-label="下一篇: Ceph 中块设备 RBD 的基本用法"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Ceph-RBD-Mirror-and-Remote-Backup/';
+              
+            this.page.identifier = '2018/Ceph-RBD-Mirror-and-Remote-Backup/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

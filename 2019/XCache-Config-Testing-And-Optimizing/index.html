@@ -1,0 +1,934 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>XCache 的配置、测试与优化 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.\n\n\n\nXRootD 代理服务 \nXRootD 直接代理模式 \nXRootD 转发代理模式 \nXRootD 联合代理模式 \nXRootD 自动代理 \nXRootD 代理缓存服务 \nXRootD 磁盘缓存模式 \nXRootD 自带了几个简单的文件缓存配置 - xrootd-filecache-cluster.cf 和 xrootd-filecache-standalone.cfg, 下面是一个磁盘缓存模式 Disk Cache 的配置文件:\nall.export /\n\nofs.osslib libXrdPss.so\n\nxrootd.trace emsg login stall redirect\nxrd.trace info\nofs.trace info\n\npss.origin = some_server:1094\n\n### 包含 Disk Cache Proxy 插件的共享库。\npss.cachelib  libXrdFileCache.so\n\n### 用来缓存需要写到磁盘上的代理缓冲的最大允许 RAM。超过这个值，代理会将请求发送到远程服务器。\npfc.ram   16g\n\npss.setopt DebugLevel 0\n\noss.memfile max 80% check map preload\n\n### 用来保存缓存文件的位置\noss.localroot  /data\n\npfc.trace  DebugLevel\npfc.prefetch  8\n\npfc.blocksize  512k\n\nofs.ckslib * libXrdPss.so\n\npfc.user xrootd\n\nXRootD 内存缓存模式 \n 与 Disk Cache 模式不同的是，XRootD 内存缓存模式 Memory Cache 是将最近访问过的文件缓存在内存中，所以要求作为服务器的内存要足够大。 XRootD Disk Cache  与  Memory Cache 是不能共存的。 XRootD Memory Cache 与标准的 XRoot Proxy 服务 相比，只多了一个 pss.cahce 语句。 下面是一个 Memory Cahce 的配置文件。\nall.export /\n\nofs.osslib libXrdPss.so\n\nxrootd.trace emsg login stall redirect\nxrd.trace info\nofs.trace info\n\npss.origin = some_server:1094\npss.cache logstats max2cache 16g sfiles on r preread\npss.setopt DebugLevel 0\n\nXCache 测试 \n 参考 \n\nProxy Storage Services (Caching, Non-Caching, &amp; Server-less Caching) Configuration Reference\nXRootd, disk-based, caching proxy for optimization of data access, data placement and data replication\nInstalling and configuring xrootd\nA fedorated Xrootd Cache\nStash Cache Installation\nDistributed and on-demand cache for CMS experiment at LHC\nXRootD-Caching-Setup\nThe adoption of the HTTP/XRootD protocols for a new data caching architecture in WLCG experiments\nDistributed Caching Using the HTCondor CacheD\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2019-01-04T10:51:47+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2019-01-04T10:51:47+08:00","description":"XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.","headline":"XCache 的配置、测试与优化","image":["xrootd.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2019/XCache-Config-Testing-And-Optimizing/","keywords":"EOS, XRootD","thumbnailUrl":"xrootd.png"}</script>
+    <meta name="description" content="XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.">
+<meta name="keywords" content="EOS,XRootD">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="XCache 的配置、测试与优化">
+<meta property="og:url" content="https://amito.me/2019/XCache-Config-Testing-And-Optimizing/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.758Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="XCache 的配置、测试与优化">
+<meta name="twitter:description" content="XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2019/XCache-Config-Testing-And-Optimizing/xrootd.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2019/XCache-Config-Testing-And-Optimizing/xrootd.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            XCache 的配置、测试与优化
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2019-01-04T10:51:47+08:00">
+	
+		    1月 04, 2019
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/EOS/">EOS</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>XRoodD is the common protocol generally used in high energy physics computing. XRootD proxy for file cache(XCache) is a typical way for XRootD.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#XRootD- 代理服务"><span class="toc-text">XRootD 代理服务 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 直接代理模式"><span class="toc-text">XRootD 直接代理模式 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 转发代理模式"><span class="toc-text">XRootD 转发代理模式 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 联合代理模式"><span class="toc-text">XRootD 联合代理模式 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 自动代理"><span class="toc-text">XRootD 自动代理 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#XRootD- 代理缓存服务"><span class="toc-text">XRootD 代理缓存服务 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 磁盘缓存模式"><span class="toc-text">XRootD 磁盘缓存模式 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#XRootD- 内存缓存模式"><span class="toc-text">XRootD 内存缓存模式 </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#XCache- 测试"><span class="toc-text">XCache 测试 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考"><span class="toc-text"> 参考 </span></a></li></ol>
+<h2 id="XRootD- 代理服务">XRootD 代理服务 </h2>
+<h3 id="XRootD- 直接代理模式">XRootD 直接代理模式 </h3>
+<h3 id="XRootD- 转发代理模式">XRootD 转发代理模式 </h3>
+<h3 id="XRootD- 联合代理模式">XRootD 联合代理模式 </h3>
+<h3 id="XRootD- 自动代理">XRootD 自动代理 </h3>
+<h2 id="XRootD- 代理缓存服务">XRootD 代理缓存服务 </h2>
+<h3 id="XRootD- 磁盘缓存模式">XRootD 磁盘缓存模式 </h3>
+<p>XRootD 自带了几个简单的文件缓存配置 - <code>xrootd-filecache-cluster.cf</code> 和 <code>xrootd-filecache-standalone.cfg</code>, 下面是一个磁盘缓存模式 <code>Disk Cache</code> 的配置文件:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">all.export /
+
+ofs.osslib libXrdPss.so
+
+xrootd.trace emsg login stall redirect
+xrd.trace info
+ofs.trace info
+
+pss.origin = some_server:1094
+
+### 包含 Disk Cache Proxy 插件的共享库。
+pss.cachelib  libXrdFileCache.so
+
+### 用来缓存需要写到磁盘上的代理缓冲的最大允许 RAM。超过这个值，代理会将请求发送到远程服务器。
+pfc.ram   16g
+
+pss.setopt DebugLevel 0
+
+oss.memfile max 80% check map preload
+
+### 用来保存缓存文件的位置
+oss.localroot  /data
+
+pfc.trace  DebugLevel
+pfc.prefetch  8
+
+pfc.blocksize  512k
+
+ofs.ckslib * libXrdPss.so
+
+pfc.user xrootd
+</code></pre>
+<h3 id="XRootD- 内存缓存模式">XRootD 内存缓存模式 </h3>
+<p> 与 <code>Disk Cache</code> 模式不同的是，XRootD 内存缓存模式 <code>Memory Cache</code> 是将最近访问过的文件缓存在内存中，所以要求作为服务器的内存要足够大。 XRootD <code>Disk Cache</code>  与  <code>Memory Cache</code> 是不能共存的。 XRootD Memory Cache 与标准的 XRoot Proxy 服务 相比，只多了一个 <code>pss.cahce</code> 语句。 下面是一个 Memory Cahce 的配置文件。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">all.export /
+
+ofs.osslib libXrdPss.so
+
+xrootd.trace emsg login stall redirect
+xrd.trace info
+ofs.trace info
+
+pss.origin = some_server:1094
+pss.cache logstats max2cache 16g sfiles on r preread
+pss.setopt DebugLevel 0
+</code></pre>
+<h2 id="XCache- 测试">XCache 测试 </h2>
+<h2 id="参考"> 参考 </h2>
+<ol>
+<li><a href="http://xrootd.org/doc/dev47/pss_config.htm" target="_blank" rel="noopener">Proxy Storage Services (Caching, Non-Caching, &amp; Server-less Caching) Configuration Reference</a></li>
+<li><a href="https://doi.org/10.1088/1742-6596/513/4/042044" target="_blank" rel="noopener">XRootd, disk-based, caching proxy for optimization of data access, data placement and data replication</a></li>
+<li><a href="https://twiki.cern.ch/twiki/bin/view/AtlasComputing/Tier3gXrootdSetup" target="_blank" rel="noopener">Installing and configuring xrootd</a></li>
+<li><a href="https://www.researchgate.net/publication/328387441_A_federated_Xrootd_cache" target="_blank" rel="noopener">A fedorated Xrootd Cache</a></li>
+<li><a href="https://opensciencegrid.org/StashCache/admin/install/" target="_blank" rel="noopener">Stash Cache Installation</a></li>
+<li><a href="https://indico.nikhef.nl/event/1318/session/1/contribution/10/material/slides/0.pdf" target="_blank" rel="noopener">Distributed and on-demand cache for CMS experiment at LHC</a></li>
+<li><a href="https://gitlab.ekp.kit.edu/ETP-HTC/XRootD-Caching-Setup/tree/master" target="_blank" rel="noopener">XRootD-Caching-Setup</a></li>
+<li><a href="https://indico.egi.eu/indico/event/3973/contribution/97" target="_blank" rel="noopener">The adoption of the HTTP/XRootD protocols for a new data caching architecture in WLCG experiments</a></li>
+<li><a href="http://digitalcommons.unl.edu/cgi/viewcontent.cgi?article=1003&amp;context=hollandfacpub" target="_blank" rel="noopener">Distributed Caching Using the HTCondor CacheD</a></li>
+</ol>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/EOS/">EOS</a> <a class="tag tag--primary tag--small t-link" href="/tags/XRootD/">XRootD</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/GPU-Virtualizations-and-Cloud-Computing/"
+                    data-tooltip="GPU 虚拟化与云计算"
+                    aria-label="上一篇: GPU 虚拟化与云计算"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Mount-CephFS-over-NFS/"
+                    data-tooltip="将 Ceph 文件系统 CephFS 挂载为 NFS"
+                    aria-label="下一篇: 将 Ceph 文件系统 CephFS 挂载为 NFS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/GPU-Virtualizations-and-Cloud-Computing/"
+                    data-tooltip="GPU 虚拟化与云计算"
+                    aria-label="上一篇: GPU 虚拟化与云计算"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Mount-CephFS-over-NFS/"
+                    data-tooltip="将 Ceph 文件系统 CephFS 挂载为 NFS"
+                    aria-label="下一篇: 将 Ceph 文件系统 CephFS 挂载为 NFS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/XCache-Config-Testing-And-Optimizing/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2019/XCache-Config-Testing-And-Optimizing/';
+              
+            this.page.identifier = '2019/XCache-Config-Testing-And-Optimizing/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

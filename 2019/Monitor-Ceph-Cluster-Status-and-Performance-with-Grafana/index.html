@@ -1,0 +1,1157 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>利用 Grafana 监控 Ceph 集群的状态和性能 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。\n\n\n\n在 CentoS 7 下安装 Grafana\n最简单的方法是通过 Grafana 的官方 Repo 来安装 Grafana。\n\n添加 grafana repo\n\n$ cat  docker-compose.yml\n# Example usage of exporter in use\nversion: '2'\nservices:\n  ceph-exporter:\n    image: ceph_exporter\n    restart: unless-stopped\n    network_mode: \"host\"\n    volumes:\n        - /etc/ceph:/etc/ceph\n    ports:\n        - '9128:9128'\nEOF\n$ docker-compose up -d\n### 3. systemd:\n$ cat  {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2019-02-14T12:43:37+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2019-02-14T12:43:37+08:00","description":"Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。","headline":"利用 Grafana 监控 Ceph 集群的状态和性能","image":["grafana.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/","keywords":"Ceph, Grafana","thumbnailUrl":"grafana.png"}</script>
+    <meta name="description" content="Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。">
+<meta name="keywords" content="Ceph,Grafana">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="利用 Grafana 监控 Ceph 集群的状态和性能">
+<meta property="og:url" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana-data-source.png">
+<meta property="og:image" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana-prometheus.png">
+<meta property="og:image" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana-import.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.725Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="利用 Grafana 监控 Ceph 集群的状态和性能">
+<meta name="twitter:description" content="Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。">
+<meta name="twitter:image" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana-data-source.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/grafana.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            利用 Grafana 监控 Ceph 集群的状态和性能
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2019-02-14T12:43:37+08:00">
+	
+		    2月 14, 2019
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Grafana 是一套开源的跨平台的可视化工具，可以将采集的数据进行可视化展示，并进行通知，展示方式多样，能够让我们随时掌控系统的运行情况。这里我们介绍如何使用 Grafana 来对 Ceph 集群进行性能和运行状态的监控。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#在 -CentoS-7- 下安装 -Grafana"><span class="toc-text">在 CentoS 7 下安装 Grafana</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#使用 -Telegraf- 和 -InfluxDB- 监控 -Ceph"><span class="toc-text">使用 Telegraf 和 InfluxDB 监控 Ceph</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#利用 -Prometheus- 监控 -Ceph"><span class="toc-text">利用 Prometheus 监控 Ceph</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#在 -CentoS-7- 下安装 -Prometheus"><span class="toc-text">在 CentoS 7 下安装 Prometheus</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#安装 -Docker"><span class="toc-text">安装  Docker</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#构建 -Ceph-exporter- 镜像"><span class="toc-text">构建 Ceph-exporter 镜像</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#将 -Prometheus- 数据添加到 -Grafana"><span class="toc-text">将 Prometheus 数据添加到 Grafana</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#启用 -Ceph- 的 -Prometheus- 模块"><span class="toc-text">启用 Ceph 的 Prometheus 模块</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#导入 -Ceph- 集群的 -Grafana-Dashboards"><span class="toc-text">导入 Ceph 集群的 Grafana Dashboards</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考"><span class="toc-text">参考</span></a></li></ol>
+<h2 id="在 -CentoS-7- 下安装 -Grafana">在 CentoS 7 下安装 Grafana</h2>
+<p>最简单的方法是通过 Grafana 的官方 Repo 来安装 Grafana。</p>
+<ol>
+<li>添加 grafana repo</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cat << EOF | sudo tee /etc/yum.repos.d/grafana.repo
+[grafana]
+name=grafana
+baseurl=https://packagecloud.io/grafana/stable/el/7/
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://packagecloud.io/gpg.key https://grafanarel.s3.amazonaws.com/RPM-GPG-KEY-grafana
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+EOF
+</code></pre>
+<ol start="2">
+<li>安装 grafana</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y grafana
+</code></pre>
+<ol start="3">
+<li>启动 Grafana：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo systemctl enable --now grafana-server
+</code></pre>
+<ol start="4">
+<li>设置防火墙，打开 3000 端口：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo firewall-cmd --permanent --add-port=3000/tcp
+$ sudo firewall-cmd --reload
+</code></pre>
+<ol start="5">
+<li>在浏览器中访问 <code>server-ip:3000</code> 就可以看到 Grafana 界面了。默认用户和组都是 <code>admin</code>。</li>
+</ol>
+<p>Grafana 默认配置文件在 <code>/etc/grafana/grafana.in</code>, 数据库在 <code>/var/lib/grafana/grafana.db</code>, log 存储在 <code>/var/log/grafana</code>。</p>
+<h2 id="使用 -Telegraf- 和 -InfluxDB- 监控 -Ceph">使用 Telegraf 和 InfluxDB 监控 Ceph</h2>
+<p>to be updated…</p>
+<h2 id="利用 -Prometheus- 监控 -Ceph">利用 Prometheus 监控 Ceph</h2>
+<p>我们需要安装 Prometheus 和 ceph-exporter 来为 Grafana 提供 Ceph 的信息，</p>
+<h3 id="在 -CentoS-7- 下安装 -Prometheus">在 CentoS 7 下安装 Prometheus</h3>
+<ol>
+<li>创建一个 Prometheus 系统组和账户：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### uid, gid < 1000
+$ sudo useradd -s /sbin/nologin -r -U prometheus
+### 
+</code></pre>
+<ol start="2">
+<li>创建 Prometheus 数据和配置文件夹</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo mkdir -p /etc/prometheus/{rules,rules.d}
+$ sudo mkdir -p /var/lib/prometheus
+</code></pre>
+<ol start="3">
+<li>下载最新的 Prometheus 二进制包进行安装(2。7.1)</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ VER=2.7.1
+$ wget https://github.com/prometheus/prometheus/releases/download/v${VER}/prometheus-${VER}.linux-amd64.tar.gz
+$ tar xf prometheus-${VER}.linux-amd64.tar.bz2 && cd prometheus-${VER}.linux-amd64
+### binary
+$ sudo cp prometheus promtool /usr/bin/
+### configuration
+$ sudo cp -r consoles console_libraries prometheus.yml /etc/prometheus
+### permissions
+$ sudo chown -R prometheus:prometheus /var/lib/prometheus /etc/prometheus/
+</code></pre>
+<ol start="4">
+<li>创建 Prometheus 配置文件:</li>
+</ol>
+<pre class=" language-language-yml"><code class="language-language-yml"># Global config
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 15s
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+	  - targets: ['localhost:9090']
+
+</code></pre>
+<ol start="5">
+<li>创建 systemd 服务单元 <code>prometheus.service</code>, 其中，<code>Environment="GOMAXPROCS=2"</code> 是服务器上的 vCPUs 数量:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[Unit]
+Description=Prometheus
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Environment="GOMAXPROCS=2"
+User=prometheus
+Group=prometheus
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries \
+  --web.listen-address=0.0.0.0:9090 \
+  --web.external-url=
+
+SyslogIdentifier=prometheus
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<ol start="6">
+<li>启动 Prometheus 服务：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo cp prometheus.service /usr/lib/systemd/system
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable --now prometheus
+</code></pre>
+<ol start="7">
+<li>配置防火墙，打开相应的端口</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### open to all ip
+$ sudo firewall-cmd --permanent --add-port=9090/tcp
+### open to subnets
+$ sudo firewall-cmd --permanent --add-rich-rule 'rule family="ipv4" source address="192.168.60.0/24" port protocol="tcp" port="9090" accept'
+$ sudo firewall-cmd --reload
+</code></pre>
+<h3 id="安装 -Docker">安装  Docker</h3>
+<p>在用作 Docker 服务器上安装 Docker：</p>
+<ol>
+<li>移除之前安装的 Docker：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum remove -y docker docker-common docker-selinux docker-engine
+</code></pre>
+<ol start="2">
+<li>安装依赖包</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y yum-utils device-mapper-persistent-data lvm2
+</code></pre>
+<ol start="3">
+<li>添加 Docker 源：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo wget https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker.repo
+</code></pre>
+<ol start="4">
+<li>安装 Docker CE:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install docker-ce
+</code></pre>
+<ol start="5">
+<li>启动 Docker 服务：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo systemctl enable --now docker
+</code></pre>
+<h3 id="构建 -Ceph-exporter- 镜像">构建 Ceph-exporter 镜像</h3>
+<ol>
+<li>从 Github clone <code>ceph-exporter</code>：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ git clone https://github.com/digitalocean/ceph_exporter
+</code></pre>
+<ol start="2">
+<li>构建 ceph-exporter 镜像：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ docker build . -t ceph-exporter
+</code></pre>
+<ol start="3">
+<li>启动一个 Docker 容器运行 Ceph-exporter：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### 1. docker run:
+$ docker run --name ceph-exporter -v /etc/ceph:/etc/ceph --net host -p 9128:9128 --restart unless-stopped -dit digitalocean/ceph-exporter
+### 2. docker-compose:
+$ cat << EOF >> docker-compose.yml
+# Example usage of exporter in use
+version: '2'
+services:
+  ceph-exporter:
+    image: ceph_exporter
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+        - /etc/ceph:/etc/ceph
+    ports:
+        - '9128:9128'
+EOF
+$ docker-compose up -d
+### 3. systemd:
+$ cat << EOF | sudo tee /usr/lib/systemd/system/ceph-exporter.service
+[Service]
+Restart=always
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill ceph_exporter
+ExecStartPre=-/usr/bin/docker rm ceph_exporter
+
+ExecStart=/usr/bin/docker run \
+--name ceph_exporter \
+-v /etc/ceph:/etc/ceph \
+--net host \
+-p 9128:9128 \
+ceph_exporter
+
+ExecStop=-/usr/bin/docker kill ceph_exporter
+ExecStop=-/usr/bin/docker rm ceph_exporter
+EOF
+$ sudo systemctl daemon-reload 
+$ sudo systemctl enable ceph-exporter
+$ sudo systemctl status ceph-exporter
+</code></pre>
+<ol start="4">
+<li>设置防火墙，打开 9128 端口：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo firewall-cmd --permanent --add-rich-rule 'rule family="ipv4" \
+source address="192.168.60.0/24" port protocol="tcp" port="9128" accept'
+$ sudo firewall-cmd --reload
+</code></pre>
+<ol start="5">
+<li>Grafana 配置文件中加入 <code>ceph-exporter</code> 部分，修改 <strong>ceph-exporter-ip</strong> 为真实的 IP.IP，并 <strong> 重启</strong> Grafana 服务。</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">scrape_configs:
+    - job_name: prometheus
+      static_configs:
+          - targets: ['localhost:9090']
+    - job_name: 'ceph-exporter'
+      static_configs:
+        - targets: ['ceph-exporter-ip:9128']
+          labels:
+            alias: ceph-exporter
+</code></pre>
+<h3 id="将 -Prometheus- 数据添加到 -Grafana">将 Prometheus 数据添加到 Grafana</h3>
+<p>安装配置好上面的之后，我们需要在 Grafana 中添加 Prometheus 数据源。<br>
+登陆到 Grafana Web 服务器，在设置中，添加数据源，选择 Prometheus：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="grafana-data-source.png" alt=""></div>
+<p>添加数据源，需要提供的是：</p>
+<ul>
+<li>Name： 数据源名</li>
+<li>URL: 数据源地址</li>
+<li>Access: Server(Proxy) or Browser(Direct)</li>
+</ul>
+<p>添加界面如下：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="grafana-prometheus.png" alt=""></div>
+<p>填好后，点击 <code>Save and Test</code> 按钮即可。</p>
+<h3 id="启用 -Ceph- 的 -Prometheus- 模块">启用 Ceph 的 Prometheus 模块</h3>
+<p>在 Ceph 中启用 mgr 的 promtheus 监控模块：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph mgr module enable prometheus
+</code></pre>
+<h3 id="导入 -Ceph- 集群的 -Grafana-Dashboards">导入 Ceph 集群的 Grafana Dashboards</h3>
+<p><a href="https://grafana.com/dashboards" target="_blank" rel="noopener">Grafana</a> 官网上有一些已经写好的 Dashboards， 我们可以从上面导入一些设计比较好的。 Dashboard 是 json 文件，我们也可以自己修改设计 Ceph 的 Dashboard。Ceph 本身也有一些 <a href="https://github.com/ceph/ceph/tree/master/monitoring/grafana/dashboards" target="_blank" rel="noopener">Dashboards</a>, 可以作为参考。<br>
+在 Grafana Web 界面左侧的工具栏选择 <strong>+ -&gt; Import</strong>，导入界面大致如下：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="grafana-import.png" alt=""></div>
+<p>有三种方法可以导入 Dashboard：</p>
+<ul>
+<li>填写 Dashboard 在 <a href="http://Grafana.com" target="_blank" rel="noopener">Grafana.com</a> Dashboard 中的 url 或 id</li>
+<li>上传 JSON 文件</li>
+<li>直接粘贴 JSON 内容</li>
+</ul>
+<p>导入合适的 Dashboard 后，就可以在 Dashboards 界面选择查看导入的 Dashboards 了。</p>
+<p><strong>PS</strong>: <a href="https://github.com/digitalocean/ceph_exporter" target="_blank" rel="noopener">ceph-exporter</a> 中提供了 <code>docker-compose.yml</code>，包含了 Prometheus、Grafana 和 ceph-exporter， 我们可以使用 docker-compose 一起运行这三个服务。</p>
+<h2 id="参考">参考</h2>
+<ol>
+<li><a href="https://grafana.com/dashboards/7056" target="_blank" rel="noopener">Grafana Ceph - Cluster 7056</a></li>
+<li><a href="https://grafana.com/dashboards/2842" target="_blank" rel="noopener">Grafana Ceph - Cluster 2842</a></li>
+<li><a href="https://grafana.com/dashboards/917" target="_blank" rel="noopener">Grafana Ceph - Cluster 917</a></li>
+<li><a href="https://grafana.com/dashboards/923" target="_blank" rel="noopener">Grafana Ceph - Cluster 923</a></li>
+<li><a href="https://grafana.com/dashboards/926" target="_blank" rel="noopener">Grafana Ceph - Cluster 926</a></li>
+<li><a href="https://computingforgeeks.com/monitoring-ceph-cluster-with-prometheus-and-grafana/" target="_blank" rel="noopener">Monitoring Ceph Cluster with Prometheus and Grafana</a></li>
+<li><a href="http://docs.ceph.com/docs/mimic/mgr/prometheus/" target="_blank" rel="noopener">Prometheus plugin</a></li>
+<li><a href="https://github.com/ceph/ceph/tree/master/monitoring" target="_blank" rel="noopener">Ceph Monitoring</a></li>
+<li><a href="https://computingforgeeks.com/install-prometheus-server-on-centos-7/" target="_blank" rel="noopener">Install Prometheus Server on CentOS 7 and Ubuntu 18.04</a></li>
+<li><a href="https://computingforgeeks.com/monitoring-ceph-cluster-with-prometheus-and-grafana/" target="_blank" rel="noopener">Monitoring Ceph Cluster with Prometheus and Grafana</a></li>
+</ol>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Grafana/">Grafana</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Using-NVIDIA-vGPU-in-Linux-KVM/"
+                    data-tooltip="在 Linux KVM 中使用 NVIDIA vGPU"
+                    aria-label="上一篇: 在 Linux KVM 中使用 NVIDIA vGPU"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/GPU-Virtualizations-and-Cloud-Computing/"
+                    data-tooltip="GPU 虚拟化与云计算"
+                    aria-label="下一篇: GPU 虚拟化与云计算"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/Using-NVIDIA-vGPU-in-Linux-KVM/"
+                    data-tooltip="在 Linux KVM 中使用 NVIDIA vGPU"
+                    aria-label="上一篇: 在 Linux KVM 中使用 NVIDIA vGPU"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2019/GPU-Virtualizations-and-Cloud-Computing/"
+                    data-tooltip="GPU 虚拟化与云计算"
+                    aria-label="下一篇: GPU 虚拟化与云计算"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/';
+              
+            this.page.identifier = '2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

@@ -1,0 +1,1017 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>搭建并运行管理 QuarkDB 集群 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"QuarkDB 是一个由 Cern 的 IT-ST 部门开发的高可用的 键 - 值  存储的内存数据库, 其实现了 redis 命令集的一个小的子集. QuarkDB 建立在 rocksdb 之上, rocksdb 则是一个强一致性的嵌入式的  键 - 值  存储系统. QuarkDB的高可用性是由多副本节点和 raft 分布一致性算法保证的.\n\n\n\n下图是 CERN 给出的 EOS 未来 NS 的设计，使用 QuarkDB 作为 EOS 的元数据存储服务器：\n\n下面就简要介绍一下如何搭建一个 QuarkDB 集群。\n安装 QuarkDB\n通过源安装\n安装 QuarkDB 最简单的方式就是从源里进行安装. 如果运行的是 CentOS 7, 将如下内容保存到 quarkdb.repo, 放在 /etc/yum.repos.d下.\n[quarkdb-stable]\nname=QuarkDB repository [stable]\nbaseurl=http://storage-ci.web.cern.ch/storage-ci/quarkdb/master/el7/x86_64/\nenabled=1\ngpgcheck=False\n\n[quarkdb-stable-debug]\nname=QuarkDB repository [stable debug]\nbaseurl=http://storage-ci.web.cern.ch/storage-ci/quarkdb/master/el7/x86_64/\nenabled=1\ngpgcheck=False\n\n然后通过如下命令安装\nsudo yum install -y quarkdb quarkdb-debuginfo\n\n通过源码编译安装\n\n下载源码包\n\ngit clone https://gitlab.cern.ch/eos/quarkdb.git && cd quarkdb\ngit submodule update --recursive --init\n\n\n安装依赖包\n\nsudo yum install -y expect jemalloc libzstd xrootd xrootd-client-libs xrootd-libs xrootd-selinux xrootd-server xrootd-server-libs\nsudo yum install -y lz4-devel lz4-static lz4 jemalloc jemalloc-devel zstd libzstd libzstd-devel libdwarf-static libdwarf-devel libdwarf-tools\n\n\n安装 devtoolset-7\n\nyum install centos-release-scl && yum install devtoolset-7 && source /opt/rh/devtoolset-7/enable\n\n\n编译测试安装 QuarkDB\n\nmkdir build && cd build\ncmake ..\nmake\n./test/quarkdb-tests\n\n搭建 QuarkDB 集群\n初始化数据库文件夹\n假定我们在 qdb-1:7777, qdb-2:7777, qdb-3:7777 三台机器上部署 QuarkDB 集群, 确定集群的名字 --clusterID 可由 uuid 产生, 比如 0c01a140-b3ff-11e8-86bb-9cb6d0e634f1, 一个唯一的 clusterID 能够避免集群节点误与其他集群交流.\n首先, 我们要在每一个节点上初始化数据库文件夹. 在每一个节点上运行如下命令:\nfor i in 1 2 3;do\n\tssh qdb-${i} \"sudo quarkdb-create --path /var/lib/quarkdb/node-$i --clusterID 0c01a140-b3ff-11e8-86bb-9cb6d0e634f1 --nodes qdb-1:7777,qdb-2:7777,qdb-3:7777\"\n\tssh qdb-${i} \"sudo mkdir -p /var/log/quarkdb/ && sudo chown -R xrootd:xrootd /var/log/quarkdb\"\n\tssh qdb-${i} \"sudo mkdir -p /var/spool/quarkdb/ && sudo chown -R xrootd:xrootd /var/log/quarkdb\"\ndone\n\n每个节点上的命令都要保持 --clusterID 和 --nodes 一直.\n修改数据库文件夹权限:\nfor i in 1 2 3;do\n    ssh qdb-$i \"sudo chown -R xrootd:xrootd /var/lib/quarkdb/node-$i\"\ndone\n\n配置 QuarkDB 实例\nQuarkDB 使用 XrootD 作为通信后端, 所以其配置跟 EOS 等类似. 每个节点上的配置文件如下(raft 模式)\nxrd.port 7777\nxrd.protocol redis:7777 libXrdQuarkDB.so\nredis.mode raft\nredis.database /var/lib64/quarkdb/node-x\nredis.myself qdb-x:7777\n\n将其保存到 /etc/xrootd/xrootd-quarkdb.cfg, 然后通过 systemd 启动 quarkdb 实例\nfor i in 1 2 3;do\ncat  xrootd-quarkdb.cfg\nxrd.port 7777\nxrd.protocol redis:7777 libXrdQuarkDB.so\nredis.mode raft\nredis.database /var/lib/quarkdb/node-$i\nredis.myself qdb-$i:7777\nEOF\ncat xrootd-quarkdb.cfg | ssh qdb-$i \"sudo tee /etc/xrootd/xrootd-quarkdb.cfg\"\nssh qdb-$i sudo systemctl enable --now xrootd@quarkdb\ndone\n\nlog 文件是 /var/log/xrootd/quarkdb/xrootd.log.\n运行 QuarkDB 集群\n为了能正常运行 QuarkDB 集群, 必须有大多数(或法定数(quorum)) 的节点正常可使用, 例如 3 个至少有 2 个, 5 个至少有 3 个,7 个至少有 4 个.\n启动集群中大部分节点后, 如果正常的话, 这些节点会进行选举, 一个变成 leader, 其他变成 followers.\n在任一节点上使用 redis-cli -p 7777 进入与集群交互界面, 使用 raft-info 和 quarkdb-info 可以查看节点信息.\n验证节点是否正常工作.\nqdb-1.example.com:7777> set mykey myval\nOK\nqdb-1.example.com:7777> get mykey\n\"myval\"\n\n\n管理 QuarkDB 集群\n增加节点\n\n在新节点上运行创建集群的命令, --nodes 选项中不要有新的节点，\n\n$ sudo quarkdb-create --path /var/lib/quarkdb/node-4 --clusterID 0c01a140-b3ff-11e8-86bb-9cb6d0e634f1\n--nodes qdb-1:7777 qdb-2:7777 qdb-3:7777\n...\n$ sudo systemctl enable --now xrootd@quarkdb.service\n\n\n在 leader 节点上使用 raft_add_observer 命令添加新节点为 observer\n\n$ redis-cli -h leader -p 7777 raft_add_observer qdb-4:7777\n\n\n在新节点成为 observer 并上线后，提升其为 follower：\n\n$ redis-cli -h leader -p 7777 raft_info\n$ redis-cli -h leader -p 7777 raft_promote_observer qdb-4:7777\n\n移除节点\n假设我们要移除 qdb-4.example.com\n$ redis-cli -h leader -p 7777 raft_remove_memeber qdb-4:7777\n\n需要注意的是， 不能移除 leader.\n密码认证\n默认的 QuarkDB 是可以接受所有连接的， 这很不安全。 我们可以为 QuarkDB 启用密码认证。 在原有的配置文件中加入如下一行：\nredis.password_file /etc/xrootd/quarkdb.passwd\n\n其中 /etc/xrootd/quarkdb.passwd 是密码文件，主属需要设置为 xrootd:xrootd, 权限为 400。\n或者加入下面一行：\nredis.password your-quarkdb-password\n\n选项后面接的就是认证密码。\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-08T22:12:18+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-08T22:12:18+08:00","description":"QuarkDB 是一个由 Cern 的 IT-ST 部门开发的高可用的 键-值 存储的内存数据库, 其实现了 redis 命令集的一个小的子集. QuarkDB 建立在 rocksdb 之上, rocksdb 则是一个强一致性的嵌入式的 键-值存储系统. QuarkDB的高可用性是由多副本节点和 raft 分布一致性算法保证的.","headline":"搭建并运行管理 QuarkDB 集群","image":["sql.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/","keywords":"Linux, QuarkDB, Redis","thumbnailUrl":"sql.png"}</script>
+    <meta name="description" content="QuarkDB 是一个由 Cern 的 IT-ST 部门开发的高可用的 键-值 存储的内存数据库, 其实现了 redis 命令集的一个小的子集. QuarkDB 建立在 rocksdb 之上, rocksdb 则是一个强一致性的嵌入式的 键-值存储系统. QuarkDB的高可用性是由多副本节点和 raft 分布一致性算法保证的.">
+<meta name="keywords" content="Linux,QuarkDB,Redis">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="搭建并运行管理 QuarkDB 集群">
+<meta property="og:url" content="https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="QuarkDB 是一个由 Cern 的 IT-ST 部门开发的高可用的 键-值 存储的内存数据库, 其实现了 redis 命令集的一个小的子集. QuarkDB 建立在 rocksdb 之上, rocksdb 则是一个强一致性的嵌入式的 键-值存储系统. QuarkDB的高可用性是由多副本节点和 raft 分布一致性算法保证的.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/quarkdb-cluster.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.718Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="搭建并运行管理 QuarkDB 集群">
+<meta name="twitter:description" content="QuarkDB 是一个由 Cern 的 IT-ST 部门开发的高可用的 键-值 存储的内存数据库, 其实现了 redis 命令集的一个小的子集. QuarkDB 建立在 rocksdb 之上, rocksdb 则是一个强一致性的嵌入式的 键-值存储系统. QuarkDB的高可用性是由多副本节点和 raft 分布一致性算法保证的.">
+<meta name="twitter:image" content="https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/quarkdb-cluster.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/sql.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/sql.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            搭建并运行管理 QuarkDB 集群
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-08T22:12:18+08:00">
+	
+		    9月 08, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/SQL/">SQL</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>QuarkDB 是一个由 <code>Cern</code> 的 <code>IT-ST</code> 部门开发的高可用的 <code>键 - 值 </code> 存储的内存数据库, 其实现了 <code>redis</code> 命令集的一个小的子集. QuarkDB 建立在 <a href="https://github.com/facebook/rocksdb" target="_blank" rel="noopener">rocksdb</a> 之上, <code>rocksdb</code> 则是一个强一致性的嵌入式的 <code> 键 - 值 </code> 存储系统. <code>QuarkDB</code>的高可用性是由多副本节点和 <a href="https://raft.github.io/raft.pdf" target="_blank" rel="noopener">raft</a> 分布一致性算法保证的.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#安装 -QuarkDB"><span class="toc-text">安装 QuarkDB</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#通过源安装"><span class="toc-text">通过源安装</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#通过源码编译安装"><span class="toc-text">通过源码编译安装</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#搭建 -QuarkDB- 集群"><span class="toc-text">搭建 QuarkDB 集群</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#初始化数据库文件夹"><span class="toc-text">初始化数据库文件夹</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -QuarkDB- 实例"><span class="toc-text">配置 QuarkDB 实例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#运行 -QuarkDB- 集群"><span class="toc-text">运行 QuarkDB 集群</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#管理 -QuarkDB- 集群"><span class="toc-text">管理 QuarkDB 集群</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#增加节点"><span class="toc-text">增加节点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#移除节点"><span class="toc-text">移除节点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#密码认证"><span class="toc-text">密码认证</span></a></li></ol></li></ol>
+<p>下图是 CERN 给出的 EOS 未来 NS 的设计，使用 QuarkDB 作为 EOS 的元数据存储服务器：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="quarkdb-cluster.png" alt=""></div>
+<p>下面就简要介绍一下如何搭建一个 QuarkDB 集群。</p>
+<h2 id="安装 -QuarkDB">安装 QuarkDB</h2>
+<h3 id="通过源安装">通过源安装</h3>
+<p>安装 QuarkDB 最简单的方式就是从源里进行安装. 如果运行的是 <code>CentOS 7</code>, 将如下内容保存到 <code>quarkdb.repo</code>, 放在 <code>/etc/yum.repos.d</code>下.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[quarkdb-stable]
+name=QuarkDB repository [stable]
+baseurl=http://storage-ci.web.cern.ch/storage-ci/quarkdb/master/el7/x86_64/
+enabled=1
+gpgcheck=False
+
+[quarkdb-stable-debug]
+name=QuarkDB repository [stable debug]
+baseurl=http://storage-ci.web.cern.ch/storage-ci/quarkdb/master/el7/x86_64/
+enabled=1
+gpgcheck=False
+</code></pre>
+<p>然后通过如下命令安装</p>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo yum install -y quarkdb quarkdb-debuginfo
+</code></pre>
+<h3 id="通过源码编译安装">通过源码编译安装</h3>
+<ol>
+<li>下载源码包</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">git clone https://gitlab.cern.ch/eos/quarkdb.git && cd quarkdb
+git submodule update --recursive --init
+</code></pre>
+<ol start="2">
+<li>安装依赖包</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">sudo yum install -y expect jemalloc libzstd xrootd xrootd-client-libs xrootd-libs xrootd-selinux xrootd-server xrootd-server-libs
+sudo yum install -y lz4-devel lz4-static lz4 jemalloc jemalloc-devel zstd libzstd libzstd-devel libdwarf-static libdwarf-devel libdwarf-tools
+</code></pre>
+<ol start="3">
+<li>安装 <code>devtoolset-7</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">yum install centos-release-scl && yum install devtoolset-7 && source /opt/rh/devtoolset-7/enable
+</code></pre>
+<ol start="4">
+<li>编译测试安装 <code>QuarkDB</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">mkdir build && cd build
+cmake ..
+make
+./test/quarkdb-tests
+</code></pre>
+<h2 id="搭建 -QuarkDB- 集群">搭建 QuarkDB 集群</h2>
+<h3 id="初始化数据库文件夹">初始化数据库文件夹</h3>
+<p>假定我们在 <code>qdb-1:7777</code>, <code>qdb-2:7777</code>, <code>qdb-3:7777</code> 三台机器上部署 <code>QuarkDB</code> 集群, 确定集群的名字 <code>--clusterID</code> 可由 <code>uuid</code> 产生, 比如 <code>0c01a140-b3ff-11e8-86bb-9cb6d0e634f1</code>, 一个唯一的 <code>clusterID</code> 能够避免集群节点误与其他集群交流.</p>
+<p>首先, 我们要在每一个节点上初始化数据库文件夹. 在每一个节点上运行如下命令:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">for i in 1 2 3;do
+	ssh qdb-${i} "sudo quarkdb-create --path /var/lib/quarkdb/node-$i --clusterID 0c01a140-b3ff-11e8-86bb-9cb6d0e634f1 --nodes qdb-1:7777,qdb-2:7777,qdb-3:7777"
+	ssh qdb-${i} "sudo mkdir -p /var/log/quarkdb/ && sudo chown -R xrootd:xrootd /var/log/quarkdb"
+	ssh qdb-${i} "sudo mkdir -p /var/spool/quarkdb/ && sudo chown -R xrootd:xrootd /var/log/quarkdb"
+done
+</code></pre>
+<p>每个节点上的命令都要保持 <code>--clusterID</code> 和 <code>--nodes</code> 一直.</p>
+<p>修改数据库文件夹权限:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">for i in 1 2 3;do
+    ssh qdb-$i "sudo chown -R xrootd:xrootd /var/lib/quarkdb/node-$i"
+done
+</code></pre>
+<h3 id="配置 -QuarkDB- 实例">配置 QuarkDB 实例</h3>
+<p>QuarkDB 使用 <code>XrootD</code> 作为通信后端, 所以其配置跟 <code>EOS</code> 等类似. 每个节点上的配置文件如下(<code>raft</code> 模式)</p>
+<pre class=" language-language-bash"><code class="language-language-bash">xrd.port 7777
+xrd.protocol redis:7777 libXrdQuarkDB.so
+redis.mode raft
+redis.database /var/lib64/quarkdb/node-x
+redis.myself qdb-x:7777
+</code></pre>
+<p>将其保存到 <code>/etc/xrootd/xrootd-quarkdb.cfg</code>, 然后通过 systemd 启动 quarkdb 实例</p>
+<pre class=" language-language-bash"><code class="language-language-bash">for i in 1 2 3;do
+cat << EOF > xrootd-quarkdb.cfg
+xrd.port 7777
+xrd.protocol redis:7777 libXrdQuarkDB.so
+redis.mode raft
+redis.database /var/lib/quarkdb/node-$i
+redis.myself qdb-$i:7777
+EOF
+cat xrootd-quarkdb.cfg | ssh qdb-$i "sudo tee /etc/xrootd/xrootd-quarkdb.cfg"
+ssh qdb-$i sudo systemctl enable --now xrootd@quarkdb
+done
+</code></pre>
+<p>log 文件是 <code>/var/log/xrootd/quarkdb/xrootd.log</code>.</p>
+<h3 id="运行 -QuarkDB- 集群">运行 QuarkDB 集群</h3>
+<p>为了能正常运行 QuarkDB 集群, 必须有大多数(或法定数(quorum)) 的节点正常可使用, 例如 3 个至少有 2 个, 5 个至少有 3 个,7 个至少有 4 个.</p>
+<p>启动集群中大部分节点后, 如果正常的话, 这些节点会进行选举, 一个变成 <code>leader</code>, 其他变成 <code>followers</code>.</p>
+<p>在任一节点上使用 <code>redis-cli -p 7777</code> 进入与集群交互界面, 使用 <code>raft-info</code> 和 <code>quarkdb-info</code> 可以查看节点信息.</p>
+<p>验证节点是否正常工作.</p>
+<pre class=" language-language-redis"><code class="language-language-redis">qdb-1.example.com:7777> set mykey myval
+OK
+qdb-1.example.com:7777> get mykey
+"myval"
+
+</code></pre>
+<h2 id="管理 -QuarkDB- 集群">管理 QuarkDB 集群</h2>
+<h3 id="增加节点">增加节点</h3>
+<ol>
+<li>在新节点上运行创建集群的命令, <code>--nodes</code> 选项中不要有新的节点，</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo quarkdb-create --path /var/lib/quarkdb/node-4 --clusterID 0c01a140-b3ff-11e8-86bb-9cb6d0e634f1
+--nodes qdb-1:7777 qdb-2:7777 qdb-3:7777
+...
+$ sudo systemctl enable --now xrootd@quarkdb.service
+</code></pre>
+<ol start="2">
+<li>在 <code>leader</code> 节点上使用 <code>raft_add_observer</code> 命令添加新节点为 <code>observer</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ redis-cli -h leader -p 7777 raft_add_observer qdb-4:7777
+</code></pre>
+<ol start="3">
+<li>在新节点成为 <code>observer</code> 并上线后，提升其为 <code>follower</code>：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ redis-cli -h leader -p 7777 raft_info
+$ redis-cli -h leader -p 7777 raft_promote_observer qdb-4:7777
+</code></pre>
+<h3 id="移除节点">移除节点</h3>
+<p>假设我们要移除 <code>qdb-4.example.com</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ redis-cli -h leader -p 7777 raft_remove_memeber qdb-4:7777
+</code></pre>
+<p>需要注意的是， 不能移除 <code>leader</code>.</p>
+<h3 id="密码认证">密码认证</h3>
+<p>默认的 QuarkDB 是可以接受所有连接的， 这很不安全。 我们可以为 QuarkDB 启用密码认证。 在原有的配置文件中加入如下一行：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">redis.password_file /etc/xrootd/quarkdb.passwd
+</code></pre>
+<p>其中 <code>/etc/xrootd/quarkdb.passwd</code> 是密码文件，主属需要设置为 <code>xrootd:xrootd</code>, 权限为 <code>400</code>。<br>
+或者加入下面一行：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">redis.password your-quarkdb-password
+</code></pre>
+<p>选项后面接的就是认证密码。</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/QuarkDB/">QuarkDB</a> <a class="tag tag--primary tag--small t-link" href="/tags/Redis/">Redis</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-And-Manage-A-Redis-Cluster/"
+                    data-tooltip="部署并运行 Redis 数据库集群"
+                    aria-label="上一篇: 部署并运行 Redis 数据库集群"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Connect-SSLVPN-under-CentOS-and-Fedora/"
+                    data-tooltip="CentOS 和 Fedora 下连接深信服 SSLVPN"
+                    aria-label="下一篇: CentOS 和 Fedora 下连接深信服 SSLVPN"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Deploy-And-Manage-A-Redis-Cluster/"
+                    data-tooltip="部署并运行 Redis 数据库集群"
+                    aria-label="上一篇: 部署并运行 Redis 数据库集群"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Connect-SSLVPN-under-CentOS-and-Fedora/"
+                    data-tooltip="CentOS 和 Fedora 下连接深信服 SSLVPN"
+                    aria-label="下一篇: CentOS 和 Fedora 下连接深信服 SSLVPN"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/';
+              
+            this.page.identifier = '2018/Deploy-And-Run-A-QuarkDB-Cluster/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

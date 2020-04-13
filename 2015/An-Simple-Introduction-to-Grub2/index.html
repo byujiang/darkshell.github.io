@@ -1,0 +1,1029 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>An Simple Introduction to Grub2 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"GNU GRUB（GRand Unified Bootloader）是一个来自 GNU 项目的启动引导程序。GRUB 是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。\n\n\n\ngrub 安装指南\nGRUB 的一个重要的特性是安装它不需依附一个操作系统；但是，这种安装需要一个 Linux 副本，如果没有 linux 环境, 可以安装一个 linux 虚拟机来安装 grub. 当前在 Windows 下有一个实验性版本可以使用。\nGRUB 实质上是一个微型系统，通过链式启动的方式，它可以启动所有安装的主流操作系统。除了安装到硬盘外，GRUB 也可安装到光盘、软盘和闪存盘等移动介质中，这样就可以带起一台无法从硬盘启动的系统。\n\n安装到硬盘\n这个一般不需要手动安装，在安装系统时，grub 会自动安装到硬盘上，如果需要手动安装，可参考下面安装到 u 盘的方法。\n安装到 U 盘\n制作一个可启动优盘会带在身边有时候会很方便，grub 是非常好的选择。 一般我们使用的就是 i386-pc 和 x86_64-efi 两种模式。\n\ni386-pc platform\n\n如果使用 ubuntu，一般是安装的这个模式。 可以在传统 bios 模式下工作。\n\nx86_64-efi platform\n\n如果使用 fedora 或 opensuse， 一般是 x86_64-efi 模式， 可以在 uefi 模式下工作。\n生成引导文件：\n将其放到 u 盘 的 /EFI/BOOT/ 下面，替换掉原来的 BOOTX64.EFI（做好备份）.\n当然 fedora/opensuse 下也可以安装 i386-pc platform，只是相应地要改一下命令。安装到硬盘的话，只需将–removable 去掉就好了。\n当然你需要一台已经装了 linux 的电脑，windows 下暂时没有试过官方提供的 grub for windows。\n\ngrub 引导 iso\n一般的 linux 发行版都会有 livecd, 使用 grub 可以轻松引导 iso 并进行体验或者安装. 或者可以使用 syslinux 中的  引导 winpe 等 iso, memdisk 可以从这里  下载 编译. 使用方法按照下面的配置就可以.\n\ngrub 一般配置\n下面是一份 GPT/UEFI 分区的 USB 上 grub 的通用配置，用来做引导 u 盘， MBR 模式的可以相应修改， 通常存放在 /EFI/grub2/grug.cfg。\n### grub configuration\n### Author: Darkshell\n### Email:  byujiang@163.com\n### Home:   https://www.darkshell.me\n\n### Basic Setting ###\n### Partition USB to two parts，and uuid1 and uuid2 are uuids of two partitions.\nset uuid1=1F83-3F65\nset uuid2=1F83-3F65\nsearch --no-floppy --fs-uuid --set root $uuid2\nset default=0\nset timeout=5\n\nnsmod terminal\nset font=/efi/grub2/fonts/unicode.pf2\nloadfont $font\nset gfxmode=auto\ninsmod gfxterm\ninsmod gfxmenu\ninsmod gfxterm_menu\n# terminal_input gfxterm\n# terminal gfxterm\nterminal_output gfxterm\ninsmod fat\ninsmod ext2\ninsmod part_gpt\ninsmod efi_gop\ninsmod iso9660\ninsmod chain\ninsmod linux\ninsmod exfat\ninsmod linuxefi\ninsmod echo\ninsmod configfile\ninsmod boot\ninsmod search_label\ninsmod search_fs_file\ninsmod search\ninsmod search_fs_uuid\ninsmod loadbios\ninsmod linux16\ninsmod lsefi\ninsmod lspci\ninsmod memdisk\ninsmod ls\ninsmod video\ninsmod video_fb\ninsmod normal\ninsmod test\ninsmod sleep\ninsmod probe\ninsmod png\ninsmod jpeg\ninsmod gettext\ninsmod video_bochs\ninsmod video_cirrus\ninsmod gzio\ninsmod efi_uga\n\nif  loadfont /efi/grub2/themes/ascii.pf2;then\n\tloadfont /efi/grub2/themes/DejaVuSans-Bold14.pf2\n\tloadfont /efi/grub2/themes/DejaVuSans10.pf2\n\tloadfont /efi/grub2/themes/DejaVuSans12.pf2\n\tloadfont /efi/grub2/themes/asciii.pf2\n\tset theme=/efi/grub2/themes/theme.txt\n\tbackground_image -m stretch /efi/grub2/themes/background.jpg\nfi\n\n# 引导 LiveCD ISO 和 DVD files entry， iso 文件都在 (hd,gpt1)/boot/ 下面\n# Most from wiki.archlinux.org/index.php/GRUB\n### Ubuntu AMD64 ###\nmenuentry \"Ubuntu LiveCD\" {\n\tGRUB_DISTRIBUTOR=ubuntu\n\tsetearch --no-floppy --fs-uuid --set=root $uuid1\n\tset gfxpayload=keep\n\tloopback loop /boot/ubuntu.iso\n\techo Loading vmlinuz.efi...\n\tlinux (loop)/linuxcasper/vmlinuz.efi boot=casper iso-scan/filename=/boot/ubuntu.iso  locale=en_US.UTF-8\n\techo Loading initrd.lz...\n\tinitrd (loop)/casper/initrd.lz\n\techo booting...\n}\n### local opensuse ###\nmenuentry \"Local Fedora\"{\n\tset gfxpayload=keep\n\tset root=(hd1,gpt1)\n\techo loading linux...\n\tchainloader (hd1,gpt1)/efi/fedora/grubx64.efi\n\tboot\n}\nmenuentry \"Local openSUSE\"{\n\tset gfxpayload=keep\n\tset root=(hd1,gpt3)\n\techo loading linux...\n\tchainloaderinloader (hd1,gpt1)/EFI/opensuse/grubx64.efi\n\tboot\n}\n\n#### openSUSE KDE ###\nmenuentry \"openSUSE KDE liveCD\" {\n\tGRUB_DISTRIBUTOR=opensuse\n\tset gfxpayload=keep\n\t#set root=(hd0,gpt1)\n\tsearch --no-floppy --fs-uuid --set root $uuid1\n\tloopback loopback /boot/opensuse.iso\n\techo Loading linux...\n\tlinuxefi (loop)/boot/x86_64/loader/linux isofrom_device=/dev/sdb1 isofrom_system=/boot/opensuse.iso LANG=en_US.UTF-8\n\techo Loading initrd...\n\tinitrdefi (loop)/boot/x86_64/loadfontder/initrd\n\techo booting...\n}\n\n当系统引导遭到破坏只能进入 grub 界面时，可以手动引导系统，然后再修复引导。\ngrub2 引导 LiveCD\n\ngrub 美化教程\ngrub 是高度可定制的， 可以按照喜好，美化引导界面。 也可以套用现成的主题。\n\n水水更健康…&lt;(￣▽￣)&gt; 哇哈哈…\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2015-12-12T03:19:52+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2015-12-12T03:19:52+08:00","description":"GNU GRUB（GRand Unified Bootloader）是一个来自GNU项目的启动引导程序。GRUB是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。","headline":"An Simple Introduction to Grub2","image":["linux.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2015/An-Simple-Introduction-to-Grub2/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2015/An-Simple-Introduction-to-Grub2/","keywords":"Linux, grub","thumbnailUrl":"linux.png"}</script>
+    <meta name="description" content="GNU GRUB（GRand Unified Bootloader）是一个来自GNU项目的启动引导程序。GRUB是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。">
+<meta name="keywords" content="Linux,grub">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="An Simple Introduction to Grub2">
+<meta property="og:url" content="https://amito.me/2015/An-Simple-Introduction-to-Grub2/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="GNU GRUB（GRand Unified Bootloader）是一个来自GNU项目的启动引导程序。GRUB是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.713Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="An Simple Introduction to Grub2">
+<meta name="twitter:description" content="GNU GRUB（GRand Unified Bootloader）是一个来自GNU项目的启动引导程序。GRUB是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2015/An-Simple-Introduction-to-Grub2/linux.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2015/An-Simple-Introduction-to-Grub2/linux.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            An Simple Introduction to Grub2
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2015-12-12T03:19:52+08:00">
+	
+		    12月 12, 2015
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Linux/">Linux</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>GNU GRUB（GRand Unified Bootloader）是一个来自 GNU 项目的启动引导程序。GRUB 是多启动规范的实现，它允许用户可以在计算机内同时拥有多个操作系统，并在计算机启动时选择希望运行的操作系统。目前绝大部分现代 linux 发行版都采用 grub 来引导系统，并且 windows 和 mac 也可以用 grub 来引导。这使得用 grub 引导多系统非常方便。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#grub- 安装指南"><span class="toc-text">grub 安装指南</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#安装到硬盘"><span class="toc-text">安装到硬盘</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装到 -U- 盘"><span class="toc-text">安装到 U 盘</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#grub- 引导 -iso"><span class="toc-text">grub 引导 iso</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#grub- 一般配置"><span class="toc-text">grub 一般配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#grub2- 引导 -LiveCD"><span class="toc-text">grub2 引导 LiveCD</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#grub- 美化教程"><span class="toc-text">grub 美化教程</span></a></li></ol>
+<h3 id="grub- 安装指南">grub 安装指南</h3>
+<p>GRUB 的一个重要的特性是安装它不需依附一个操作系统；但是，这种安装需要一个 Linux 副本，如果没有 linux 环境, 可以安装一个 linux 虚拟机来安装 grub. 当前在 Windows 下有一个实验性版本可以使用。<br>
+GRUB 实质上是一个微型系统，通过链式启动的方式，它可以启动所有安装的主流操作系统。除了安装到硬盘外，GRUB 也可安装到光盘、软盘和闪存盘等移动介质中，这样就可以带起一台无法从硬盘启动的系统。</p>
+<hr>
+<h4 id="安装到硬盘">安装到硬盘</h4>
+<p>这个一般不需要手动安装，在安装系统时，grub 会自动安装到硬盘上，如果需要手动安装，可参考下面安装到 u 盘的方法。</p>
+<h4 id="安装到 -U- 盘">安装到 U 盘</h4>
+<p>制作一个可启动优盘会带在身边有时候会很方便，grub 是非常好的选择。 一般我们使用的就是 i386-pc 和 x86_64-efi 两种模式。</p>
+<ul>
+<li>i386-pc platform</li>
+</ul>
+<p>如果使用 ubuntu，一般是安装的这个模式。 可以在传统 bios 模式下工作。</p>
+<ul>
+<li>x86_64-efi platform</li>
+</ul>
+<p>如果使用 fedora 或 opensuse， 一般是 x86_64-efi 模式， 可以在 uefi 模式下工作。</p>
+<p>生成引导文件：</p>
+<p>将其放到 u 盘 的 /EFI/BOOT/ 下面，替换掉原来的 BOOTX64.EFI（做好备份）.</p>
+<p>当然 fedora/opensuse 下也可以安装 i386-pc platform，只是相应地要改一下命令。安装到硬盘的话，只需将–removable 去掉就好了。</p>
+<p>当然你需要一台已经装了 linux 的电脑，windows 下暂时没有试过官方提供的 grub for windows。</p>
+<hr>
+<h3 id="grub- 引导 -iso">grub 引导 iso</h3>
+<p>一般的 linux 发行版都会有 livecd, 使用 grub 可以轻松引导 iso 并进行体验或者安装. 或者可以使用 syslinux 中的  引导 winpe 等 iso, memdisk 可以从这里 <a href="https://www.kernel.org/pub/linux/utils/boot/syslinux/" target="_blank" rel="noopener"> 下载</a> 编译. 使用方法按照下面的配置就可以.</p>
+<hr>
+<h3 id="grub- 一般配置">grub 一般配置</h3>
+<p>下面是一份 GPT/UEFI 分区的 USB 上 grub 的通用配置，用来做引导 u 盘， MBR 模式的可以相应修改， 通常存放在 /EFI/grub2/grug.cfg。</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### grub configuration
+### Author: Darkshell
+### Email:  byujiang@163.com
+### Home:   https://www.darkshell.me
+
+### Basic Setting ###
+### Partition USB to two parts，and uuid1 and uuid2 are uuids of two partitions.
+set uuid1=1F83-3F65
+set uuid2=1F83-3F65
+search --no-floppy --fs-uuid --set root $uuid2
+set default=0
+set timeout=5
+
+nsmod terminal
+set font=/efi/grub2/fonts/unicode.pf2
+loadfont $font
+set gfxmode=auto
+insmod gfxterm
+insmod gfxmenu
+insmod gfxterm_menu
+# terminal_input gfxterm
+# terminal gfxterm
+terminal_output gfxterm
+insmod fat
+insmod ext2
+insmod part_gpt
+insmod efi_gop
+insmod iso9660
+insmod chain
+insmod linux
+insmod exfat
+insmod linuxefi
+insmod echo
+insmod configfile
+insmod boot
+insmod search_label
+insmod search_fs_file
+insmod search
+insmod search_fs_uuid
+insmod loadbios
+insmod linux16
+insmod lsefi
+insmod lspci
+insmod memdisk
+insmod ls
+insmod video
+insmod video_fb
+insmod normal
+insmod test
+insmod sleep
+insmod probe
+insmod png
+insmod jpeg
+insmod gettext
+insmod video_bochs
+insmod video_cirrus
+insmod gzio
+insmod efi_uga
+
+if  loadfont /efi/grub2/themes/ascii.pf2;then
+	loadfont /efi/grub2/themes/DejaVuSans-Bold14.pf2
+	loadfont /efi/grub2/themes/DejaVuSans10.pf2
+	loadfont /efi/grub2/themes/DejaVuSans12.pf2
+	loadfont /efi/grub2/themes/asciii.pf2
+	set theme=/efi/grub2/themes/theme.txt
+	background_image -m stretch /efi/grub2/themes/background.jpg
+fi
+
+# 引导 LiveCD ISO 和 DVD files entry， iso 文件都在 (hd,gpt1)/boot/ 下面
+# Most from wiki.archlinux.org/index.php/GRUB
+### Ubuntu AMD64 ###
+menuentry "Ubuntu LiveCD" {
+	GRUB_DISTRIBUTOR=ubuntu
+	setearch --no-floppy --fs-uuid --set=root $uuid1
+	set gfxpayload=keep
+	loopback loop /boot/ubuntu.iso
+	echo Loading vmlinuz.efi...
+	linux (loop)/linuxcasper/vmlinuz.efi boot=casper iso-scan/filename=/boot/ubuntu.iso  locale=en_US.UTF-8
+	echo Loading initrd.lz...
+	initrd (loop)/casper/initrd.lz
+	echo booting...
+}
+### local opensuse ###
+menuentry "Local Fedora"{
+	set gfxpayload=keep
+	set root=(hd1,gpt1)
+	echo loading linux...
+	chainloader (hd1,gpt1)/efi/fedora/grubx64.efi
+	boot
+}
+menuentry "Local openSUSE"{
+	set gfxpayload=keep
+	set root=(hd1,gpt3)
+	echo loading linux...
+	chainloaderinloader (hd1,gpt1)/EFI/opensuse/grubx64.efi
+	boot
+}
+
+#### openSUSE KDE ###
+menuentry "openSUSE KDE liveCD" {
+	GRUB_DISTRIBUTOR=opensuse
+	set gfxpayload=keep
+	#set root=(hd0,gpt1)
+	search --no-floppy --fs-uuid --set root $uuid1
+	loopback loopback /boot/opensuse.iso
+	echo Loading linux...
+	linuxefi (loop)/boot/x86_64/loader/linux isofrom_device=/dev/sdb1 isofrom_system=/boot/opensuse.iso LANG=en_US.UTF-8
+	echo Loading initrd...
+	initrdefi (loop)/boot/x86_64/loadfontder/initrd
+	echo booting...
+}
+</code></pre>
+<p>当系统引导遭到破坏只能进入 grub 界面时，可以手动引导系统，然后再修复引导。</p>
+<h3 id="grub2- 引导 -LiveCD">grub2 引导 LiveCD</h3>
+<hr>
+<h3 id="grub- 美化教程">grub 美化教程</h3>
+<p>grub 是高度可定制的， 可以按照喜好，美化引导界面。 也可以套用现成的主题。</p>
+<hr>
+<p>水水更健康…&lt;(￣▽￣)&gt; 哇哈哈…</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a> <a class="tag tag--primary tag--small t-link" href="/tags/grub/">grub</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Installing-and-Using-Arch-Linux/"
+                    data-tooltip="安装使用 Arch Linux"
+                    aria-label="上一篇: 安装使用 Arch Linux"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Customizing-Your-Vim-to-Raise-Working-Efficiency/"
+                    data-tooltip="配置你的 Vim 来提高工作效率"
+                    aria-label="下一篇: 配置你的 Vim 来提高工作效率"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Installing-and-Using-Arch-Linux/"
+                    data-tooltip="安装使用 Arch Linux"
+                    aria-label="上一篇: 安装使用 Arch Linux"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2015/Customizing-Your-Vim-to-Raise-Working-Efficiency/"
+                    data-tooltip="配置你的 Vim 来提高工作效率"
+                    aria-label="下一篇: 配置你的 Vim 来提高工作效率"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2015/An-Simple-Introduction-to-Grub2/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2015/An-Simple-Introduction-to-Grub2/';
+              
+            this.page.identifier = '2015/An-Simple-Introduction-to-Grub2/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

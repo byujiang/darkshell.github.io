@@ -1,0 +1,980 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>Linux 客户端自动挂载 EOS 文件系统 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"EOS 是 CERN 开发的 PB 级的文件存储系统。在 Linux 客户端上我们可以通过 Autofs (Automount) 来自动挂载 EOS。\n\n\n\nAutofs 介绍与结构\nAutofs 介绍\nAutofs 或者 Automount 是 Linux 下一个非常友好的自动按需挂载文件系统的软件。在 Linux 下， 我们一般地是用 /etc/fstab 来设定挂载点的，这两种方法都可以挂载文件系统，那它们有什么区别呢？\nAutofs 与 /etc/fstab\n/tec/fstab 是用来永久挂载文件系统的，在挂载目录很少时会很有用，但是如果挂载目录多了会对整个系统的性能有影响，所以一般只挂载一些必要的目录。\nautofs 则是按需挂载文件系统。 默认地，autofs 挂载的文件系统是处于未挂载状态，只有用户尝试去访问挂载点时，它才会自动挂载该文件系统。当用户一定时间不用该文件系统后，其会被自动卸载。\nAutofs 结构\n下图展示了 Autofs 的结构：\n\n\n/etc/autofs.conf 是 autofs 的配置文件\n/etc/auto.master 是 autofs 的主要挂载点配置文件\n/etc/autofs_ldap_auth.conf 是 LDAP 认证文件\n/etc/auto.misc 则是 Linux 设备的挂载模板\n\n安装配置 Autofs\n安装 Autofs\n### CentOS/Fedora\n$ sudo yum install -y autofs\n### Debian/Ubuntu\n$ sudo apt install -y autofs\n\n配置 /etc/auto.master\n/etc/auto.master 中记录了自动挂载的目录和配置文件，我们要挂载 EOS， 就在里面添加一项：\n/eos /etc/auto.eos  --timeout=10\n\n其中，\n\n/eos 是自动挂载点，我们将 EOS 文件系统挂载到 /eos 目录\n/etc/auto.eos 是挂载配置文件，指定了文件系统类型等等\n--timeout 是超时设置，如果超过指定时间如 10s  没有使用  该文件系统，它就会被自动卸载\n\n创建 /etc/auto.eos\n/etc/auto.eos 是我们自己创建的， 配置文件格式一般如下：\n  [host]:\n\n下面是 EOS 文件系统的配置：\ndev    --fstype=eos   :dev\n\n对于 NFS 等系统，这时就可以通过启动或重启 autofs 服务来挂载共享目录了，但是对于 EOS， 我们还要做额外的工作。\n客户端挂载 EOS\n安装 EOS-client\n客户端要挂载 EOS， 必须要安装 EOS-client:\n$ sudo yum install -y eos-client eos-fuse eos-fusex eos-fuse-core eos-fusex-core\n\n配置 /etc/sysconfig/eos.dev\n挂载 EOS 的配置文件大致如下：\nexport EOS_FUSE_CACHE=1\nexport EOS_FUSE_CACHE_PAGE_SIZE=32768\nexport EOS_FUSE_CACHE_SIZE=268435456\nexport EOS_FUSE_KERNELCACHE=1\nexport EOS_FUSE_DEBUG=0\nexport EOS_FUSE_LOGLEVEL=4\nexport EOS_FUSE_MGM_ALIAS=YOUR_MGM_HOST\nexport EOS_FUSE_MOUNTDIR=/eos\nexport EOS_FUSE_REMOTEDIR=/eos/user/a/amito\nexport EOS_FUSE_NEG_ENTRY_CACHE_TIME=1.0e-09\nexport EOS_FUSE_ATTR_CACHE_TIME=0.0000000000000001\nexport EOS_FUSE_ENTRY_CACHE_TIME=0.0000000000000001\nexport EOS_FUSE_SYNC=1\nexport EOS_FUSE_NOPIO=1\nexport EOS_FUSE_PIDMAP=1\nexport EOS_FUSE_RDAHEAD=1\nexport EOS_FUSE_RDAHEAD_WINDOW=262144\nexport EOS_FUSE_RMLVL_PROTECT=2\nexport EOS_FUSE_SHOW_SPECIAL_FILES=0\nexport EOS_FUSE_USER_KRB5CC=0\nexport EOS_LOG_SYSLOG=0\nexport XRD_APPNAME=eos-fuse\nexport XRD_CONNECTIONRETRY=4096\nexport XRD_CONNECTIONWINDOW=10\nexport XRD_DATASERVERTTL=300\nexport XRD_LOADBALANCERTTL=1800\nexport XRD_LOGLEVEL=Info\nexport XRD_REDIRECTLIMIT=5\nexport XRD_REQUESTTIMEOUT=60\nexport XRD_STREAMERRORWINDOW=60\nexport XRD_STREAMTIMEOUT=60\nexport XRD_TIMEOUTRESOLUTION=1\nexport XRD_WORKERTHREADS=16\nexport EOS_FUSE_XATTR_ENOSYS=system.posix_acl_access\ntest -e /usr/lib64/libjemalloc.so.1 && export LD_PRELOAD=/usr/lib64/libjemalloc.so.1\n\n其中需要修改的是\n\nEOS_FUSE_MGM_ALIAS: EOS 的 MGM 节点主机名\nEOS_FUSE_MOUNTDIR: 挂载到本机的目录\nEOS_FUSE_REMOTEDIR：需要挂载的目录\n\n挂载 EOS\n配置完成后，我们就可以挂载 EOS 文件系统了：\n$ sudo systemctl enable --now autofs.service\n$ sudo systemctl  restart autofs.service\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-11-09T20:40:52+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-11-09T20:40:52+08:00","description":"EOS 是 CERN 开发的PB级的文件存储系统。在 Linux 客户端上我们可以通过 Autofs (Automount) 来自动挂载 EOS。","headline":"Linux 客户端自动挂载 EOS 文件系统","image":["eos.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/","keywords":"Linux, EOS","thumbnailUrl":"eos.png"}</script>
+    <meta name="description" content="EOS 是 CERN 开发的PB级的文件存储系统。在 Linux 客户端上我们可以通过 Autofs (Automount) 来自动挂载 EOS。">
+<meta name="keywords" content="Linux,EOS">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Linux 客户端自动挂载 EOS 文件系统">
+<meta property="og:url" content="https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="EOS 是 CERN 开发的PB级的文件存储系统。在 Linux 客户端上我们可以通过 Autofs (Automount) 来自动挂载 EOS。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/autofs.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.713Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Linux 客户端自动挂载 EOS 文件系统">
+<meta name="twitter:description" content="EOS 是 CERN 开发的PB级的文件存储系统。在 Linux 客户端上我们可以通过 Autofs (Automount) 来自动挂载 EOS。">
+<meta name="twitter:image" content="https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/autofs.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/eos.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/eos.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            Linux 客户端自动挂载 EOS 文件系统
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-11-09T20:40:52+08:00">
+	
+		    11月 09, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/EOS/">EOS</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>EOS 是 CERN 开发的 PB 级的文件存储系统。在 Linux 客户端上我们可以通过 <code>Autofs (Automount)</code> 来自动挂载 EOS。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Autofs- 介绍与结构"><span class="toc-text">Autofs 介绍与结构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Autofs- 介绍"><span class="toc-text">Autofs 介绍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Autofs- 与 -etc-fstab"><span class="toc-text">Autofs 与 /etc/fstab</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Autofs- 结构"><span class="toc-text">Autofs 结构</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#安装配置 -Autofs"><span class="toc-text">安装配置 Autofs</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#安装 -Autofs"><span class="toc-text">安装 Autofs</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -etc-auto-master"><span class="toc-text">配置 /etc/auto.master</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#创建 -etc-auto-eos"><span class="toc-text">创建 /etc/auto.eos</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#客户端挂载 -EOS"><span class="toc-text">客户端挂载 EOS</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#安装 -EOS-client"><span class="toc-text">安装 EOS-client</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -etc-sysconfig-eos-dev"><span class="toc-text">配置 /etc/sysconfig/eos.dev</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#挂载 -EOS"><span class="toc-text">挂载 EOS</span></a></li></ol></li></ol>
+<h2 id="Autofs- 介绍与结构">Autofs 介绍与结构</h2>
+<h3 id="Autofs- 介绍">Autofs 介绍</h3>
+<p>Autofs 或者 Automount 是 Linux 下一个非常友好的自动按需挂载文件系统的软件。在 Linux 下， 我们一般地是用 <code>/etc/fstab</code> 来设定挂载点的，这两种方法都可以挂载文件系统，那它们有什么区别呢？</p>
+<h3 id="Autofs- 与 -etc-fstab">Autofs 与 /etc/fstab</h3>
+<p><code>/tec/fstab</code> 是用来永久挂载文件系统的，在挂载目录很少时会很有用，但是如果挂载目录多了会对整个系统的性能有影响，所以一般只挂载一些必要的目录。</p>
+<p><code>autofs</code> 则是按需挂载文件系统。 默认地，autofs 挂载的文件系统是处于未挂载状态，只有用户尝试去访问挂载点时，它才会自动挂载该文件系统。当用户一定时间不用该文件系统后，其会被自动卸载。</p>
+<h3 id="Autofs- 结构">Autofs 结构</h3>
+<p>下图展示了 Autofs 的结构：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="autofs.png" alt=""></div>
+<ul>
+<li><code>/etc/autofs.conf</code> 是 autofs 的配置文件</li>
+<li><code>/etc/auto.master</code> 是 autofs 的主要挂载点配置文件</li>
+<li><code>/etc/autofs_ldap_auth.conf</code> 是 <code>LDAP</code> 认证文件</li>
+<li><code>/etc/auto.misc</code> 则是 Linux 设备的挂载模板</li>
+</ul>
+<h2 id="安装配置 -Autofs">安装配置 Autofs</h2>
+<h3 id="安装 -Autofs">安装 Autofs</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">### CentOS/Fedora
+$ sudo yum install -y autofs
+### Debian/Ubuntu
+$ sudo apt install -y autofs
+</code></pre>
+<h3 id="配置 -etc-auto-master">配置 <code>/etc/auto.master</code></h3>
+<p><code>/etc/auto.master</code> 中记录了自动挂载的目录和配置文件，我们要挂载 EOS， 就在里面添加一项：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">/eos /etc/auto.eos  --timeout=10
+</code></pre>
+<p>其中，</p>
+<ul>
+<li><code>/eos</code> 是自动挂载点，我们将 EOS 文件系统挂载到 <code>/eos</code> 目录</li>
+<li><code>/etc/auto.eos</code> 是挂载配置文件，指定了文件系统类型等等</li>
+<li><code>--timeout</code> 是超时设置，如果超过指定时间如 <code>10s</code>  <strong>没有使用 </strong> 该文件系统，它就会被自动卸载</li>
+</ul>
+<h3 id="创建 -etc-auto-eos">创建 <code>/etc/auto.eos</code></h3>
+<p><code>/etc/auto.eos</code> 是我们自己创建的， 配置文件格式一般如下：</p>
+<pre class=" language-language-bash"><code class="language-language-bash"><name of the Share> <File System> [host]:<Share Path/Drive Path/Syntax>
+</code></pre>
+<p>下面是 EOS 文件系统的配置：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">dev    --fstype=eos   :dev
+</code></pre>
+<p>对于 NFS 等系统，这时就可以通过启动或重启 <code>autofs</code> 服务来挂载共享目录了，但是对于 EOS， 我们还要做额外的工作。</p>
+<h2 id="客户端挂载 -EOS">客户端挂载 EOS</h2>
+<h3 id="安装 -EOS-client">安装 EOS-client</h3>
+<p>客户端要挂载 EOS， 必须要安装 EOS-client:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y eos-client eos-fuse eos-fusex eos-fuse-core eos-fusex-core
+</code></pre>
+<h3 id="配置 -etc-sysconfig-eos-dev">配置 <code>/etc/sysconfig/eos.dev</code></h3>
+<p>挂载 EOS 的配置文件大致如下：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">export EOS_FUSE_CACHE=1
+export EOS_FUSE_CACHE_PAGE_SIZE=32768
+export EOS_FUSE_CACHE_SIZE=268435456
+export EOS_FUSE_KERNELCACHE=1
+export EOS_FUSE_DEBUG=0
+export EOS_FUSE_LOGLEVEL=4
+export EOS_FUSE_MGM_ALIAS=YOUR_MGM_HOST
+export EOS_FUSE_MOUNTDIR=/eos
+export EOS_FUSE_REMOTEDIR=/eos/user/a/amito
+export EOS_FUSE_NEG_ENTRY_CACHE_TIME=1.0e-09
+export EOS_FUSE_ATTR_CACHE_TIME=0.0000000000000001
+export EOS_FUSE_ENTRY_CACHE_TIME=0.0000000000000001
+export EOS_FUSE_SYNC=1
+export EOS_FUSE_NOPIO=1
+export EOS_FUSE_PIDMAP=1
+export EOS_FUSE_RDAHEAD=1
+export EOS_FUSE_RDAHEAD_WINDOW=262144
+export EOS_FUSE_RMLVL_PROTECT=2
+export EOS_FUSE_SHOW_SPECIAL_FILES=0
+export EOS_FUSE_USER_KRB5CC=0
+export EOS_LOG_SYSLOG=0
+export XRD_APPNAME=eos-fuse
+export XRD_CONNECTIONRETRY=4096
+export XRD_CONNECTIONWINDOW=10
+export XRD_DATASERVERTTL=300
+export XRD_LOADBALANCERTTL=1800
+export XRD_LOGLEVEL=Info
+export XRD_REDIRECTLIMIT=5
+export XRD_REQUESTTIMEOUT=60
+export XRD_STREAMERRORWINDOW=60
+export XRD_STREAMTIMEOUT=60
+export XRD_TIMEOUTRESOLUTION=1
+export XRD_WORKERTHREADS=16
+export EOS_FUSE_XATTR_ENOSYS=system.posix_acl_access
+test -e /usr/lib64/libjemalloc.so.1 && export LD_PRELOAD=/usr/lib64/libjemalloc.so.1
+</code></pre>
+<p>其中需要修改的是</p>
+<ul>
+<li><strong>EOS_FUSE_MGM_ALIAS</strong>: EOS 的 MGM 节点主机名</li>
+<li><strong>EOS_FUSE_MOUNTDIR</strong>: 挂载到本机的目录</li>
+<li><strong>EOS_FUSE_REMOTEDIR</strong>：需要挂载的目录</li>
+</ul>
+<h3 id="挂载 -EOS">挂载 EOS</h3>
+<p>配置完成后，我们就可以挂载 EOS 文件系统了：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo systemctl enable --now autofs.service
+$ sudo systemctl  restart autofs.service
+</code></pre>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/EOS/">EOS</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/DocDB-Introduction-Installation-And-Managment/"
+                    data-tooltip="DocDB 介绍，安装与配置维护"
+                    aria-label="上一篇: DocDB 介绍，安装与配置维护"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Configure-EOS-to-Use-QuarkDB-for-Namespace/"
+                    data-tooltip="配置 EOS 使用 QuarkDB 作为 NS"
+                    aria-label="下一篇: 配置 EOS 使用 QuarkDB 作为 NS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/DocDB-Introduction-Installation-And-Managment/"
+                    data-tooltip="DocDB 介绍，安装与配置维护"
+                    aria-label="上一篇: DocDB 介绍，安装与配置维护"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Configure-EOS-to-Use-QuarkDB-for-Namespace/"
+                    data-tooltip="配置 EOS 使用 QuarkDB 作为 NS"
+                    aria-label="下一篇: 配置 EOS 使用 QuarkDB 作为 NS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/';
+              
+            this.page.identifier = '2018/Automatically-Mount-EOS-File-System-on-Linux-Clients/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

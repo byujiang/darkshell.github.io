@@ -1,0 +1,1206 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>使用 Ceph 块存储作为 OpenStack 平台的存储后端 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 Glance, Cinder, Cinder Backup 和 nova 服务的后端. 本篇主要介绍如何配置 Ceph 和 OpenStack 让两者协同工作, 主要内容搬运自 RedHat\n\n\n\nPrerequisites\n本文档主要介绍配置 Ceph, QEMU, libvirt 和 OpenStack 使用 Ceph 作为后端存储服务.\n\n为了使用 Ceph 块存储作为 OpenStack 后端, 我们需要\n\n一个正常运行的 Ceph cluster\n至少一个 OpenStack 节点\n\nOpenStack 服务有三部分是与 Ceph 块存储整合在一起的,\n\n镜像(images): OpenStack Glance 管理 虚拟机的镜像.\n卷(volumes): 卷是块设备. OpenStack 使用卷来启动虚拟机, 或者将卷附加到运行的虚拟机上.\n访客硬盘 (Guest Disks): 访客硬盘是访客操作系统的硬盘. 一般当虚拟机起动时, 其硬盘会出现在管理系统的文件系统中(通常在 /var/lib/nova/instances/&lt;uuid&gt;/&lt;/uuid&gt; 之下)\n\nOpenStack Glance 能够将镜像存储为一个 Ceph 块设备, 能够使用 Cinder 通过一个镜像的写时拷贝克隆镜像来起动虚拟机. Ceph 并不支持 QCOW2 格式的虚拟机硬盘. 为了支持从 Ceph 中起动虚拟机, Glance 镜像必须是 RAW 格式.\nOpenStack 可以使用 Ceph 作为镜像, 巻, 或访客硬盘的存储, 可以只用作部分的, 也可以用作全部的.\n创建 Ceph 池\n默认 Ceph 块设备会使用 rbd 池. 你也可心使用任何可用的池. 下面我们将分别为 Cinder, Cinder Backup, Glance 和 Nova 创建存储池. 根据情况更改 pg 值(可参考 Ceph Pools 中 PG 和 PGP 的设置)\n### Adjust pg here 128 to your situation\n$ ceph osd pool create volumes 128; rbd pool init volumes\n$ ceph osd pool create backups 128; rbd pool init backups\n$ ceph osd pool create images 128; rbd pool init images\n$ ceph osd pool creaate vms 128; rbd pool init vms\n\n如果 Ceph 显示 application not enabled on &lt;x&gt; pool(s) 等类似的 Warning，需要启用 Pool 的 rbd 属性\n$ for i in volumes backups images vms; do ceph osd pool application enable $i rbd; done\n\n安装和配置 Ceph 客户端\nnova-compute,  cinder-backup 和 cinder-volume 节点需要 Python bindings 和客户端的命令行工具.\n$ sudo yum install -y python-rbd\n$ sudo yum install -y ceph-common\n\nglance-api 节点则只需要安装 python-rbd 即可.\n拷贝 Ceph 配置文件到 OpenStack 节点\n运行着 glance-api, cinder-volume, cinder-backup 和 nova-compute 的节点相当于 Ceph 的客户端, 因而需要 Ceph 的配置文件, 将其拷贝到所有的 OpenStack 节点上.\n$ scp /etc/ceph/ceph.conf osp:/etc/ceph/ceph.conf\n\n配置 Ceph Client 认证\n在一个 Ceph mon 节点上, 为 Cinder, Cinder-Backup, Glance 和 Nova 建立各自的账号.\n$ ceph auth get-or-create client.volumes mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=volumes, allow rwx pool=vms, allow rx pool=images'\n$ ceph auth get-or-create client.backup mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=backups'\n$ ceph auth get-or-create client.glance mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=images'\n$ ceph auth get-or-create client.nova mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=vms, allow rx pool=images'\n\n\n然后分别将 client.volumes, client.backup, 和 client.glance 三个密钥分发到相应的节点上.\n$ ceph auth get-or-create client.cinder | ssh cinder-volume-server sudo tee /etc/ceph/ceph.client.cinder.keyring\n$ ssh cinder-volume chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring\n$ ceph auth get-key client.cinder | ssh {cinder-node} tee client.cinder.key\n$ ceph auth get-or-create client.backup | ssh cinder-backup-server tee /etc/ceph/ceph.client.backup.keyring\n$ ssh cinder-backup-server chown cinder:cinder /etc/ceph/ceph.client.backup.keyring\n$ ceph auth get-or-create client.glance | ssh glance-api-server sudo tee /etc/ceph/ceph.client.glance.keyring\n$ ssh glance-api-server chown glance:glance /etc/ceph/ceph.client.glance.keyring\n$ ceph auth get-or-create client.nova | ssh nova-compute-server tee /etc/ceph/ceph.client.nova.keyring\n\n在控制节点上，\n$ ssh {cinder-manager-node}\n$ uuidgen > cinder.uuid.txt\n$ cat > cinder.xml  nova.xml  /etc/ceph/nova.xml  {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-05T10:25:13+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-05T10:25:13+08:00","description":"Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 Glance, Cinder, Cinder Backup 和 nova 服务的后端. 本篇主要介绍如何配置 Ceph 和 OpenStack 让两者协同工作, 主要内容搬运自 RedHat","headline":"使用 Ceph 块存储作为 OpenStack 平台的存储后端","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/","keywords":"Ceph, OpenStack, Rados","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 Glance, Cinder, Cinder Backup 和 nova 服务的后端. 本篇主要介绍如何配置 Ceph 和 OpenStack 让两者协同工作, 主要内容搬运自 RedHat">
+<meta name="keywords" content="Ceph,OpenStack,Rados">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="使用 Ceph 块存储作为 OpenStack 平台的存储后端">
+<meta property="og:url" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 Glance, Cinder, Cinder Backup 和 nova 服务的后端. 本篇主要介绍如何配置 Ceph 和 OpenStack 让两者协同工作, 主要内容搬运自 RedHat">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/architecture.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.740Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 Ceph 块存储作为 OpenStack 平台的存储后端">
+<meta name="twitter:description" content="Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 Glance, Cinder, Cinder Backup 和 nova 服务的后端. 本篇主要介绍如何配置 Ceph 和 OpenStack 让两者协同工作, 主要内容搬运自 RedHat">
+<meta name="twitter:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/architecture.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            使用 Ceph 块存储作为 OpenStack 平台的存储后端
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-05T10:25:13+08:00">
+	
+		    9月 05, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph 提供了很好的接口可以让 OpenStack 使用来作为其 <code>Glance</code>, <code>Cinder</code>, <code>Cinder Backup</code> 和 <code>nova</code> 服务的后端. 本篇主要介绍如何配置 <code>Ceph</code> 和 <code>OpenStack</code> 让两者协同工作, 主要内容搬运自 <a href="https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/3/html/ceph_block_device_to_openstack_guide/" target="_blank" rel="noopener">RedHat</a></p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Prerequisites"><span class="toc-text">Prerequisites</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#创建 -Ceph- 池"><span class="toc-text">创建 Ceph 池</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#安装和配置 -Ceph- 客户端"><span class="toc-text">安装和配置 Ceph 客户端</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#拷贝 -Ceph- 配置文件到 -OpenStack- 节点"><span class="toc-text">拷贝 Ceph 配置文件到 OpenStack 节点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -Ceph-Client- 认证"><span class="toc-text">配置 Ceph Client 认证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -OpenStack- 使用 -Ceph"><span class="toc-text">配置 OpenStack 使用 Ceph</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -Cinder"><span class="toc-text">配置 Cinder</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#设置 -Cinder-Backup"><span class="toc-text">设置 Cinder Backup</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -GLANCE"><span class="toc-text">配置 GLANCE</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -NOVA"><span class="toc-text">配置 NOVA</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#更改 -Ceph- 配置文件"><span class="toc-text">更改 Ceph 配置文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#重启 -OpenStack- 服务"><span class="toc-text">重启 OpenStack 服务</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#测试 -Ceph- 与 -OpenStack"><span class="toc-text">测试 Ceph 与 OpenStack</span></a></li></ol>
+<h2 id="Prerequisites">Prerequisites</h2>
+<p>本文档主要介绍配置 Ceph, QEMU, libvirt 和 OpenStack 使用 Ceph 作为后端存储服务.</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="architecture.png" alt=""></div>
+<p>为了使用 Ceph 块存储作为 OpenStack 后端, 我们需要</p>
+<ul>
+<li>一个正常运行的 Ceph cluster</li>
+<li>至少一个 OpenStack 节点</li>
+</ul>
+<p>OpenStack 服务有三部分是与 Ceph 块存储整合在一起的,</p>
+<ul>
+<li>镜像(images): OpenStack Glance 管理 虚拟机的镜像.</li>
+<li>卷(volumes): 卷是块设备. OpenStack 使用卷来启动虚拟机, 或者将卷附加到运行的虚拟机上.</li>
+<li>访客硬盘 (Guest Disks): 访客硬盘是访客操作系统的硬盘. 一般当虚拟机起动时, 其硬盘会出现在管理系统的文件系统中(通常在 <code>/var/lib/nova/instances/&lt;uuid&gt;/&lt;/uuid&gt;</code> 之下)</li>
+</ul>
+<p>OpenStack Glance 能够将镜像存储为一个 Ceph 块设备, 能够使用 Cinder 通过一个镜像的写时拷贝克隆镜像来起动虚拟机. Ceph 并不支持 <code>QCOW2</code> 格式的虚拟机硬盘. 为了支持从 Ceph 中起动虚拟机, Glance 镜像必须是 <code>RAW</code> 格式.</p>
+<p>OpenStack 可以使用 Ceph 作为镜像, 巻, 或访客硬盘的存储, 可以只用作部分的, 也可以用作全部的.</p>
+<h2 id="创建 -Ceph- 池">创建 Ceph 池</h2>
+<p>默认 Ceph 块设备会使用 <strong><code>rbd</code></strong> 池. 你也可心使用任何可用的池. 下面我们将分别为 <code>Cinder</code>, <code>Cinder Backup</code>, <code>Glance</code> 和 <code>Nova</code> 创建存储池. 根据情况更改 <code>pg</code> 值(可参考 <a href="https://amito.me/2018/09/Setup-PG-and-PGP-for-Ceph-Pools">Ceph Pools 中 PG 和 PGP 的设置</a>)</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### Adjust pg here 128 to your situation
+$ ceph osd pool create volumes 128; rbd pool init volumes
+$ ceph osd pool create backups 128; rbd pool init backups
+$ ceph osd pool create images 128; rbd pool init images
+$ ceph osd pool creaate vms 128; rbd pool init vms
+</code></pre>
+<p>如果 Ceph 显示 <code>application not enabled on &lt;x&gt; pool(s)</code> 等类似的 Warning，需要启用 Pool 的 rbd 属性</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ for i in volumes backups images vms; do ceph osd pool application enable $i rbd; done
+</code></pre>
+<h2 id="安装和配置 -Ceph- 客户端">安装和配置 Ceph 客户端</h2>
+<p><code>nova-compute</code>,  <code>cinder-backup</code> 和 <code>cinder-volume</code> 节点需要 Python bindings 和客户端的命令行工具.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y python-rbd
+$ sudo yum install -y ceph-common
+</code></pre>
+<p><code>glance-api</code> 节点则只需要安装 <code>python-rbd</code> 即可.</p>
+<h3 id="拷贝 -Ceph- 配置文件到 -OpenStack- 节点">拷贝 Ceph 配置文件到 OpenStack 节点</h3>
+<p>运行着 <code>glance-api</code>, <code>cinder-volume</code>, <code>cinder-backup</code> 和 <code>nova-compute</code> 的节点相当于 Ceph 的客户端, 因而需要 Ceph 的配置文件, 将其拷贝到所有的 OpenStack 节点上.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ scp /etc/ceph/ceph.conf osp:/etc/ceph/ceph.conf
+</code></pre>
+<h3 id="配置 -Ceph-Client- 认证">配置 Ceph Client 认证</h3>
+<p>在一个 Ceph mon 节点上, 为 <code>Cinder</code>, <code>Cinder-Backup</code>, <code>Glance</code> 和 <code>Nova</code> 建立各自的账号.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph auth get-or-create client.volumes mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=volumes, allow rwx pool=vms, allow rx pool=images'
+$ ceph auth get-or-create client.backup mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=backups'
+$ ceph auth get-or-create client.glance mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=images'
+$ ceph auth get-or-create client.nova mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=vms, allow rx pool=images'
+
+</code></pre>
+<p>然后分别将 <code>client.volumes</code>, <code>client.backup</code>, 和 <code>client.glance</code> 三个密钥分发到相应的节点上.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph auth get-or-create client.cinder | ssh cinder-volume-server sudo tee /etc/ceph/ceph.client.cinder.keyring
+$ ssh cinder-volume chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring
+$ ceph auth get-key client.cinder | ssh {cinder-node} tee client.cinder.key
+$ ceph auth get-or-create client.backup | ssh cinder-backup-server tee /etc/ceph/ceph.client.backup.keyring
+$ ssh cinder-backup-server chown cinder:cinder /etc/ceph/ceph.client.backup.keyring
+$ ceph auth get-or-create client.glance | ssh glance-api-server sudo tee /etc/ceph/ceph.client.glance.keyring
+$ ssh glance-api-server chown glance:glance /etc/ceph/ceph.client.glance.keyring
+$ ceph auth get-or-create client.nova | ssh nova-compute-server tee /etc/ceph/ceph.client.nova.keyring
+</code></pre>
+<p>在控制节点上，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh {cinder-manager-node}
+$ uuidgen > cinder.uuid.txt
+$ cat > cinder.xml <<EOF
+<secret ephemeral='no' private='no'>
+<uuid>`cat cinder.uuid.txt`</uuid>
+	<usage type='ceph'>
+		<name>client.cinder secret</name>
+	</usage>
+ </secret>
+EOF
+$ sudo virsh secret-define --file cinder.xml
+$ sudo virsh secret-set-value --secret $(cat cinder.uuid.txt) --base64 $(cat /etc/ceph/client.cinder.key)
+</code></pre>
+<p><code>nova-compute</code> 节点需要 <code>client.nova</code> 的密钥, <code>libvirt</code> 进程需要它在附加一个块设备时访问 Ceph 集群.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph auth get-key client.nova | ssh {your-compute-node} tee client.nova.key
+</code></pre>
+<p>在计算节点上, 为密钥生成一个 <code>UUID</code>, 并保存到文件以便稍后对计算节点进行设置.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ssh nova-compute-node
+$ uuidgen > nova.uuid.txt
+</code></pre>
+<blockquote>
+<p>注意, 为了保持一致性, 最好所有计算节点上的 UUID 一样.</p>
+</blockquote>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cat > nova.xml <<EOF
+<secret ephemeral='no' private='no'>
+<uuid>`cat nova.uuid.txt`</uuid>
+<usage type='ceph'>
+<name>client.nova secret</name>
+</usage>
+</secret>
+EOF
+
+$ virsh secret-define --file nova.xml
+$ virsh secret-set-value --secret $(cat nova.uuid.txt) --base64 $(cat client.nova.key)
+</code></pre>
+<p>计算节点上也需要 <code>client.volumes</code> 的密钥和 <code>cinder.xml</code>. 将 <code>client.volumes.key</code>, <code>cinder.uuid.txt</code> 和 <code>cinder.xml</code> 复制到计算节点</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo virsh secret-define --file cinder.xml
+$ sudo virsh secret-set-value --secret $(cat cinder.uuid.txt) --base64 $(cat /etc/ceph/client.nova.key)
+</code></pre>
+<h2 id="配置 -OpenStack- 使用 -Ceph">配置 OpenStack 使用 Ceph</h2>
+<h3 id="配置 -Cinder">配置 Cinder</h3>
+<p><code>cinder-volume</code> 节点需要 Ceph 块设备驱动, 卷池, 用户, 和 密钥的 UUID 来与 Ceph 块设备来进行交互. 我们依次进行设置.</p>
+<ol>
+<li>修改 <code>Cinder</code> 配置文件, 在 <code>[Default]</code> 小节, 设置 <code>Ceph</code> 为 <code>cinder</code> 后端.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ vim /etc/cinder/cinder.conf
+$ ###### /etc/cinder/cinder.conf
+# enabled_backends = lvm
+enabled_backends = ceph
+</code></pre>
+<ol start="2">
+<li>设置 <code>Glance API</code> 版本为 2. 如果有多个 <code>cinder backend</code>, 下面一行设置必须在 <code>[Default]</code> 区.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">glance_api_version = 2
+</code></pre>
+<ol start="3">
+<li>更改 <code>default_volume_type</code> 为 <code>ceph</code>:</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash"># default_volume_type=iscsi
+default_volume_type = ceph
+</code></pre>
+<ol start="3">
+<li>在<code>/etc/cinder/cinder.conf</code> 配置文件中, 创建 <code>[ceph]</code> 小节.</li>
+<li>设定 volume_driver 使用 Ceph 块设备驱动.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph]
+volume_backend_name = ceph
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+</code></pre>
+<ol start="4">
+<li>设定 Ceph 集群名字和配置文件名字</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd_cluster_name  = ceph
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_store_ceph_conf=/etc/ceph/ceph.conf
+</code></pre>
+<ol start="5">
+<li>设定 OpenStack 存储 volumes 的 Ceph 池. 默认为 rbd.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd_pool = volumes
+</code></pre>
+<ol start="6">
+<li>设定 OpenStack 与 Ceph 交互的账号与上一节生成的密钥 UUID</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd_user = cinder
+rbd_secret_uuid = your_secret_uuid
+</code></pre>
+<ol start="7">
+<li>额外的一些设置.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd_flatten_volume_from_snapshot = false
+rbd_max_clone_depth = 5
+rbd_store_chunk_size = 4
+rados_connect_timeout= -1
+</code></pre>
+<blockquote>
+<p>建议去掉 配置中 默认的 <code>[lvm]</code> 内容.</p>
+</blockquote>
+<h3 id="设置 -Cinder-Backup">设置 Cinder Backup</h3>
+<p><code>cinder-backup</code> 节点需要一个特别的守护进程. 按照以下步骤对<code>cinder-backup</code> 进行配置.</p>
+<ol>
+<li>打开 Cinder 配置文件, 并跳到 <code>[ceph]</code> 小节.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ vim /etc/cinder/cinder.conf
+</code></pre>
+<ol start="2">
+<li>设定 <code>backup_driver</code> 为 Ceph 驱动.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">backup_driver = cinder.backup.drivers.ceph
+</code></pre>
+<ol start="3">
+<li>设定 <code>backup_ceph_conf</code> 为 Ceph 集群的配置文件.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">backup_ceph_conf = /etc/ceph/ceph.conf
+</code></pre>
+<ol start="4">
+<li>指定存储备份的 Ceph 池.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">backup_ceph_pool = backups
+</code></pre>
+<ol start="5">
+<li>指定 <code>cinder_backup</code> 与 Ceph 交互的用户.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">backup_ceph_user = cinder-backup
+</code></pre>
+<ol start="6">
+<li>其它的一些设置</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">backup_ceph_chunk_size = 134217728
+backup_ceph_stripe_unit = 0
+backup_ceph_stripe_count = 0
+restore_discard_excess_bytes = true
+</code></pre>
+<ol start="7">
+<li>检查 Cinder Backup 是否已启用, 没有则启用 Cinder Backup</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cat /etc/openstack-dashboard/local_settings*|grep enable_backup
+## if False
+$ sed -i "s|'enable_backup': False|'enable_backup': True|g" /etc/openstack-dashboard/local_settings*
+</code></pre>
+<h3 id="配置 -GLANCE">配置 GLANCE</h3>
+<p>修改 <code>GLANCE</code> 的配置文件<code>/etc/glance/glance-api.conf</code> 以使用 Ceph 块设备. 取消下面注释的配置, 并根据实际情况更改相应的值.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">stores = rbd
+default_store = rbd
+rbd_store_chunk_size = 8
+rbd_store_pool = images
+rbd_store_user = glance
+rbd_store_ceph_conf = /etc/ceph/ceph.conf
+</code></pre>
+<p>启用 <code>copy-on-write(COW)</code> 克隆功能</p>
+<pre class=" language-language-bash"><code class="language-language-bash">show_image_direct_url = True
+</code></pre>
+<p>如需要, 关闭 <code>cache management</code> 功能, <code>flavor</code> 应该只设置为 <code>keystone</code>, 而不是 <code>keystone+cachemanagement</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">flavor = keystone
+</code></pre>
+<p>如需要, 可以对镜像设置下面的属性</p>
+<pre class=" language-language-bash"><code class="language-language-bash">hw_scsi_model = virtio-scsi
+hw_disk_bus = scsi
+hw_qemu_guest_agent = yes
+os_require_quiesce=yes
+</code></pre>
+<h3 id="配置 -NOVA">配置 NOVA</h3>
+<p>我们需要修改每一个 <code>nova-compute</code> 节点上的 Ceph 配置文件, 让 Nova 直接从 Ceph 中起动所有虚拟机.</p>
+<ol>
+<li>打开 Ceph 配置文件, 在<code>[client]</code> 区加入以下内容.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">rbd cache = true
+rbd cache writethrough until flush = true
+rbd concurrent management ops = 20
+admin socket = /var/run/ceph/guests/$cluster-$type.$id.$pid.$cctid.asok
+log file = /var/log/ceph/qemu-guest-$pid.log
+</code></pre>
+<ol start="2">
+<li>为 admin socket 和日志文件建立相应的目录, 并赋予相应的权限. 文件夹需要在 <code>SELinux</code> 或 <code>AppArmor</code> 中得到允许.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir -p /var/run/ceph/guests/ /var/log/ceph/
+$ chown qemu:libvirt /var/run/ceph/guests /var/log/ceph
+</code></pre>
+<ol start="3">
+<li>为 KVM 访问 Ceph 生成一个密码</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ uuidgen |tee /etc/ceph/nova.uuid.txt
+$ cat >> /etc/ceph/nova.xml << EOF
+<secret ephemeral="no" private="no">
+<uuid>`cat /etc/ceph/nova.uuid.txt`</uuid>
+<usage type="ceph">
+<name>client.volumes secret</name>
+</usage>
+</secret>
+EOF
+$ virsh secret-define --file /etc/ceph/nova.xml
+$ virsh secret-set-value --secret `cat /etc/ceph/nova.uuid.txt` --base64 $(cat ~/client.nova.key)
+</code></pre>
+<ol start="3">
+<li>配置 <code>nova</code>. 在 <code>/etc/nova/nova.conf</code> 文件的<code>[libvirt]</code> 区, 修改如下配置.</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">force_raw_images = true
+disk_cachemodes = writeback
+
+[libvirt]
+images_type = rbd
+images_rbd_pool = vms
+images_rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_user = nova
+rbd_secret_uuid = your_nova_secret_uuid
+inject_password = false
+inject_key = false
+inject_partition = -2
+live_migration_flag="VIR_MIGRATE_UNDEFINE_SOURCE,VIR_MIGRATE_PEER2PEER,VIR _MIGRATE_LIVE,VIR_MIGRATE_PERSIST_DEST,VIR_MIGRATE_TUNNELLED"
+hw_disk_discard = unmap
+</code></pre>
+<p><code>your_nova_secret_uuid</code> 即为前面生成的密钥 UUID.</p>
+<h3 id="更改 -Ceph- 配置文件">更改 Ceph 配置文件</h3>
+<p>在 <code>/etc/ceph/ceph.conf</code> 文件后面加上下面的内容, 并同步到 Ceph 集群其他节点上.</p>
+<pre><code>[client.glance]
+keyring = /etc/ceph/ceph.client.glance.keyring
+
+[client.cinder]
+keyring = /etc/ceph/ceph.client.cinder.keyring
+
+[client.cinder-backup]
+keyring = /etc/ceph/ceph.client.cinder-backup.keyring
+
+</code></pre>
+<h3 id="重启 -OpenStack- 服务">重启 OpenStack 服务</h3>
+<p>在配置完相关设置后, 为了激活 Ceph 块设备驱动, 将块设备池名字和 Ceph 用户名字载入配置中, 我们需要重启相应的 OpenStack 服务.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ systemctl restart openstack-cinder-volume
+$ systemctl restart openstack-cinder-backup
+$ systemctl restart openstack-glance-api
+$ systemctl restart openstack-nova-compute
+</code></pre>
+<h2 id="测试 -Ceph- 与 -OpenStack">测试 Ceph 与 OpenStack</h2>
+<ol>
+<li>Cinder 创建 Volumes</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### cinder create [--display_name name] size
+$ cinder create --display_name test_image 300
+</code></pre>
+<ol start="2">
+<li>Nova 挂载 Volume</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### Usage:
+$ nova volume-attach <vm-id> <vol-id>
+### e.g.
+$ nova list
+...
+...
+| 0eb4c5a4-6b14-48e0-8e27-3de7e73736d8 | test01 | ACTIVE | -          | Running     | Vtest=192.168.8.20 |
+...
+...
+$ cinder list
+...
+| 4d26da85-e334-48d9-895b-13923349ee37 | available | test_image  | 300   | -           | false    |                                      |
+...
+$ nova volume-attach 0eb4c5a4-6b14-48e0-8e27-3de7e73736d8 4d26da85-e334-48d9-895b-13923349ee37
++----------+--------------------------------------+
+| Property | Value                                |
++----------+--------------------------------------+
+| device   | /dev/vdb                             |
+| id       | 0eb4c5a4-6b14-48e0-8e27-3de7e73736d8 |
+| serverId | 354af535-2425-49b4-979e-baffs15ed824 |
+| volumeId | 4d26da85-e334-48d9-895b-13923349ee37 |
++----------+--------------------------------------+
+</code></pre>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/OpenStack/">OpenStack</a> <a class="tag tag--primary tag--small t-link" href="/tags/Rados/">Rados</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    data-tooltip="Ceph 中的 Pools 和 PGs"
+                    aria-label="上一篇: Ceph 中的 Pools 和 PGs"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-SH-in-Python/"
+                    data-tooltip="在 Python 中使用 SH 模块执行 SHELL 命令"
+                    aria-label="下一篇: 在 Python 中使用 SH 模块执行 SHELL 命令"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Pools-and-Placement-Groups-in-Ceph/"
+                    data-tooltip="Ceph 中的 Pools 和 PGs"
+                    aria-label="上一篇: Ceph 中的 Pools 和 PGs"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-SH-in-Python/"
+                    data-tooltip="在 Python 中使用 SH 模块执行 SHELL 命令"
+                    aria-label="下一篇: 在 Python 中使用 SH 模块执行 SHELL 命令"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/';
+              
+            this.page.identifier = '2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

@@ -1,0 +1,1134 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>在 CentOS 7 下安装与配置 EOS 存储服务 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。\n\n\n\n 下图展示了 EOS 的发展历史：\n\n 准备工作 \n 为了要创建我们的 EOS 服务， 我们至少需要两个服务器节点， 一个作为 EOS MGM 主节点， 一个为 EOS MGM 从节点。这里我们将 CentOS7 作为我们的服务器操作系统。\n 安装 EOS\nCern 提供已经编译好的 EOS 安装包和依赖包， 我们也可以自己编译 EOS 安装包和依赖包。\n 从源中安装 EOS\n 从 Cern 的 EOS 源中安装 EOS 是最方便的。 创建一个 yum repo， 内容如下：\n[eos-citrine]\nname=EOS binaries from EOS project, citrine branch\nbaseurl=http://cern.ch/storage-ci/eos/citrine/tag/el-$releasever/$basearch/\nenabled=1\ngpgcheck=0\npriority=10\n\n[eos-citrine-deps]\nname=EOS dependencies from EOS project, citrine branch\nbaseurl=http://cern.ch/storage-ci/eos/citrine-depend/el-$releasever/$basearch/\nenabled=1\ngpgcheck=0\npriority=10\n\n 并复制到 /etc/yum.repos.d/\n$ sudo yum makecache && sudo yum update\n$ sudo yum install -y eos-folly eos-server eos-client eos-fuse eos-fusex\n\n 目前 EOS 稳定版本是 citrine, 版本号为 4.3.12。\n 手动编译 EOS RPM 包 \n 安装依赖库 \n$ sudo yum install -y yum-utils rpm-build rpm-build-libs yum-plugin-priorities\n$ sudo yum install -y zlib-static zlib-devel bzip2-devel bzip2-devel\n#### Download from cern\n$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-3.3.1-2.el7.cern.x86_64.rpm\n$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-compiler-3.3.1-2.el7.cern.x86_64.rpm\n$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-devel-3.3.1-2.el7.cern.x86_64.rpm\n#### eos-server dependence\n$ sudo yum install -y openldap-devel e2fsprogs-devel libmicrohttpd libmicrohttpd-devel\n#### libmicrohttpd dependence\n$ sudo yum install -y graphviz graphviz-devel libgcrypt-devel gnutls-devel\n\n 安装 devtoolset-7\n#### centos\n$ sudo yum install -y centos-release-scl.noarch\n#### scientific linux\n$ sudo yum install -y yum-conf-repos\n$ sudo yum install -y yum-conf-softwarecollections\n####--------------------------------------------\n$ sudo yum install -y devtoolset-7-gcc devtoolset-7-gcc-c++.x86_64 devtoolset-7-gcc-plugin-devel.x86_64\n$ sudo yum install -y devtoolset-7-gcc-gfortran.x86_64 devtoolset-7-gdb.x86_64 devtoolset-7-strace.x86_64 devtoolset-7.x86_64\n#### enable devltoolset\n$ scl enable devtoolset-7 bash\n\n 编译 eos-folly\n$ git clone https://gitlab.cern.ch/eos/eos-folly && cd eos-folly\n$ mkdir -p ~/rpmbuild/SOURCES\n$ cp SConstruct.double-conversion ~/rpmbuild/SOURCES/\n$ sudo yum install python2-scons openssl-devel libevent-devel cmake3 cmake devtoolset-6\n$ sed -i \"s|devtoolset-6|devtoolset-7|g\" eos-folly.spec\n$ rpmbuild --undefine=_disable_source_fetch -ba eos-folly.spec\n\n 编译 eos-rocksdb\n$ git clone https://gitlab.cern.ch/eos/eos-rocksdb && cd eos-rocksdb\n$ rpmbuild --undefine=_disable_source_fetch -ba eos-rocksdb.spec\n\n 编译 EOS\n 下载源码包：\n#### Download eos from github\n$ git clone https://gitlab.cern.ch/eos/eos\n$ mv eos eos-citrine-4.3.12-1\n$ tar cvzf eos-citrine-4.3.12-1.tar.bz2 eos-citrine-4.3.12-1\n$ mv eos-citrine-4.3.12-1.tar.gz ~/rpmbuild/SOURCES/\n$ cd eos-citrine-4.3.12-1 && cp eos.spec.in eos.spec\n$ sed -i -e \"s|@CPACK_PACKAGE_RELEASE@|1|g\" -e \"s|@CPACK_PACKAGE_VERSION_MAJOR@|4|g\"  eos.spec\n$ sed -i -e \"s|@CPACK_PACKAGE_NAME@|eos-citrine|g\" -e \"s|@CPACK_PACKAGE_VERSION|4.3.12|g\" eos.spec\n#### depends\n$ sed -i \"s|2017.09.18.00-4|2017.09.18.00-5|g\" eos.spec\n#### without server\n$ rpmbuild --undefine=_disable_source_fetch --with server -ba eos.spec\n#### with server\n## build libmicrohttpd\n$ cd microhttpd\n$ cp vmem.patch epoll.patch fdshift.patch ~/rpmbuild/SOURCES/\n$ rpmbuild --undefine=_disable_source_fetch -ba libmicrohttpd.spec\n$ sudo rpm -ivhU ~/rpmbuild/RPMS/x86_64/libmicrohttpd-* && cd ..\n## build eos with server\n$ rpmbuild --undefine=_disable_source_fetch --with server -ba eos.spec\n\n 编译好后, 安装相应的包即可.\n 配置 EOS 服务 \nEOS 有三个基本守护进程, 作为 OFS 插件跑在 xrootd 服务内.\n\nMGM - 管理服务器 (名字空间, 存储池配置, 布局与读取调度)\nMQ - 无状态异步消息传递服务器 \nFST - 文件存储服务器, 根据文件 ID 存储文件 \n\n 对于 名字空间和配置有副本的情况, 还有第四个守护进程 \n4. SYNC - 变更日志与配置文件同步服务器 \n\n 复制一份配置文件到 /etc/sysconfig/eos[_env]\n### for SL 6\n$ cp /etc/sysconfig/eos.example /etc/sysconfig/eos\n### for SL 6\n$ cp /etc/syconfig/eos_env.example /etc/sysconfig/eos_env\n\n 配置 MGM\n 更改 /etc/sysconfig/eos[_env]\n 修改如下相应的量变:\n### define roles of daemons to run on this node\n### here for management, message broker, sync and fed serfice\nXRD_ROLES=\"mq mgm fed sync global-mq\"\n### EOS instance name\nEOS_INSTANCE_NAME=eostest\n\n########################\nEOS_MGM_HOST=localhost\nEOS_BROKER_URL=root://localhost:1097//eos/\nEOS_MGM_MASTER1=eos01.amito.me\nEOS_MGM_MASTER2=eos02.amito.me\nEOS_MGM_ALIAS=eos01.amito.me\nEOS_FUSE_MGM_ALIAS=eos01.amito.me\n\n 修改 /etc/xrd.cf.mgm\n 按需修改 /etc/xrd.cf.mgm  中如下的配置 \n# sec.protocol krb5\n# sec.protocol gsi\nsec.protocol unix\nsec.protocol sss -c /etc/eos.keytab -s /etc/eos.keytab\n# sec.protocol krb5 -exptkn:/var/eos/auth/krb5# host/@CERN.CH\n# sec.protocol krb5 host/@CERN.CH\nsec.protbind localhost.localdomain unix sss\nsec.protbind localhost unix sss\nsec.protbind * unix sss\n### if using quarkdb as ns\nmgmofs.cfgtype quarkdb\nmgmofs.nslib libEosNsQuarkdb.so\nmgmofs.qdbcluster ceph0:7777 ceph1:7777 ceph2:7777 ceph3:7777\n###### if quarkdb using password\n###### /etc/quarkdb.passwd.eos permission 400\nmgmofs.qdbpassword_file /etc/quarkdb.passwd.eos\n\n 生成 eos.keytab\n 不然会出问题:\n$ test -f /etc/eos.keytab && rm -f /etc/eos.keytab\n$ yes | xrdsssadmin -k eos -u daemon -g daemon add /etc/eos.keytab >& /dev/null\n$ chown daemon:daemon /etc/eos.keytab >& /dev/null ; chmod 400 /etc/eos.keytab\n\n 设置 Master/Slave\n### Master\n$ systemctl enable --now eos@master.service\n### Slave\n$ systemctl enable --now eos@slave.service\n### on master and slave nodes\n$ systemctl enable --now eos.service\n$ systemctl enable --now eos@mgm.service\n### enable compact\n$ eos -b ns compact on 1 86400\n\n 启动 EOS\n### start\n$ systemctl start eos\n### status\n$ systemctl status eos@*\n### stop\n$ systemctl kill eos\n\nNTP 时间同步 \n 增加定时任务, 每半个小时同步一次时间:\n*/30 * * * * /usrsbin/ntpdate -s pool.ntp.org >/dev/null 2>&1\n\n 配置 FST\nFST 节点的配置相对简单一点.\n 修改 /etc/sysconfig/eos[_env]\n### define roles of daemons to run on this node\n### here for management, message broker, sync and fed serfice\nXRD_ROLES=\"fsd\"\n########################\nEOS_BROKER_URL=root://eos01.amito.me:1097//eos/\nEOS_MGM_MASTER1=eos01.amito.me\nEOS_MGM_MASTER2=eos02.amito.me\nEOS_MGM_ALIAS=eos01.amito.me\nEOS_FUSE_MGM_ALIAS=eos01.amito.me\n\n 启动 FST\n$ systemctl enable --now eos\n$ systemctl enable --now eos@fst\n$ systemctl status eos@fst\n\n 设置存储位置 \n$ mkdir /data01 && chown -R daemon:daemon /data01\n\n 启用 FST\n 在 MGM 上, 进入 EOS 控制台 \n$ eos\nEOS Console [root://localhost]|/> node set fst01.amito.me on\n### make sure fst01.amito.me is on\nEOS Console [root://localhost]|/> node ls\n### a3bxxx is uuid of the partition\nEOS Console [root://localhost]|/> fs add -m 1 a3b0d210-4cce-413f-91ed-13ee9a5b9dc4 fsd01.amito.me:1095 /data01\n#### EOS 认证\nEOS Console [root://localhost]|/> vib enable unix\nEOS Console [root://localhost]|/> vib enable sss\n#### FUSE 配置\nEOS Console [root://localhost]|/> vid set map -tident \"*@fs.amito.me\" vuid:0\nEOS Console [root://localhost]|/> vid set map -tident \"*@fs.amito.me\" vgid:0\nEOS Console [root://localhost]|/> vid add gateway login* unix\nEOS Console [root://localhost]|/> vid add gateway vm* unix\n#### 启动 FST\nEOS Console [root://localhost]|/> fs boot 1\nEOS Console [root://localhost]|/> fs config 1 configstatus rw\nEOS Console [root://localhost]|/> group set default on\n\n 配置 FED\n$ mkdir -p /var/spool/xrootd/fed\n$ sudo chown -R daemon:daemon /var/spool/xrootd/fed\n\n 配置 QuarkDB NS\n 参考  配置 EOS 使用 QuarkDB 作为 NS。\nEOS 故障分析与解决 \n 配置 \n\nUnable process keytable /etc/eos.keytab; No such file or directory\n\n$ chmod 600 /etc/eos.keytab 2>/dev/null; unlink /etc/eos.keytab 2>/dev/null; yes | xrdsssadmin -k eos -u daemon -g daemon add /etc/eos.keytab >& /dev/null; chown daemon:daemon /etc/eos.keytab >& /dev/null ; chmod 400 /etc/eos.keytab;\"\n\n\n 主从 MGM 节点通信出现 Decrypt key not found, 可能是 /etc/eos.keytab 不一致导致的。\n\n[root@mgm-master-node ~]$ scp /etc/eos.keytab mgm-slave-node:/etc\n\n\neos vid ls 出现如下权限错误的问题：\n\nerror: errc=3010 msg=\"Unable to execute proc command - you don't have the requested permissions for that operation (2) /proc/admin/; Operation not permitted\"\n\n 通过查看用户 ID，\n$ eos whoami\nVirtual Identity: uid=99 (99) gid=99 (99) [authz:unix] host=ceph1\n\n 发现 host 不是 localhost， /etc/hosts 中对 127.0.0.1 做了修改 \n$ cat /etc/hosts\n127.0.0.1   ceph1 localhost localhost.localdomain localhost4 localhost4.localdomain4\n::1         ceph1 localhost localhost.localdomain localhost6 localhost6.localdomain6\n\n 去掉 ceph1， 将其改回来，就可以了。\n4. /var/log/eos/tx/transfer-archive.log not found\n$ mkdir -p /var/log/eos/tx && chown -R daemon:daemon /var/log/eos\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-24T20:26:19+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-24T20:26:19+08:00","description":"EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。","headline":"在 CentOS 7 下安装与配置 EOS 存储服务","image":["eos.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/","keywords":"Storage, EOS","thumbnailUrl":"eos.png"}</script>
+    <meta name="description" content="EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。">
+<meta name="keywords" content="Storage,EOS">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="在 CentOS 7 下安装与配置 EOS 存储服务">
+<meta property="og:url" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:image" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/eos-history.png">
+<meta property="og:image" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/architecture.png">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.722Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="在 CentOS 7 下安装与配置 EOS 存储服务">
+<meta name="twitter:description" content="EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。">
+<meta name="twitter:image" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/eos-history.png">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/eos.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/eos.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            在 CentOS 7 下安装与配置 EOS 存储服务
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-24T20:26:19+08:00">
+	
+		    9月 24, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/EOS/">EOS</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>EOS 是欧洲核子中心开发的专门用来提供可靠的 PB 级数据存储技术的软件解决方案, 目前在 LHC 和其他一些场景都有实例在运行. EOS 的核心是 XrootD 框架, 其提供了非常多的远程访问协议。本文是 EOS 的一个简单安装配置过程。</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#准备工作"><span class="toc-text"> 准备工作 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#安装 -EOS"><span class="toc-text"> 安装 EOS</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#从源中安装 -EOS"><span class="toc-text"> 从源中安装 EOS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#手动编译 -EOS-RPM- 包"><span class="toc-text"> 手动编译 EOS RPM 包 </span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#安装依赖库"><span class="toc-text"> 安装依赖库 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 -devtoolset-7"><span class="toc-text"> 安装 devtoolset-7</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#编译 -eos-folly"><span class="toc-text"> 编译 eos-folly</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#编译 -eos-rocksdb"><span class="toc-text"> 编译 eos-rocksdb</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#编译 -EOS"><span class="toc-text"> 编译 EOS</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置 -EOS- 服务"><span class="toc-text"> 配置 EOS 服务 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -MGM"><span class="toc-text"> 配置 MGM</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#更改 -etc-sysconfig-eos-env"><span class="toc-text"> 更改 /etc/sysconfig/eos[_env]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#修改 -etc-xrd-cf-mgm"><span class="toc-text"> 修改 /etc/xrd.cf.mgm</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#生成 -eos-keytab"><span class="toc-text"> 生成 eos.keytab</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#设置 -Master-Slave"><span class="toc-text"> 设置 Master/Slave</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#启动 -EOS"><span class="toc-text"> 启动 EOS</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#NTP- 时间同步"><span class="toc-text">NTP 时间同步 </span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -FST"><span class="toc-text"> 配置 FST</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#修改 -etc-sysconfig-eos-env"><span class="toc-text"> 修改 /etc/sysconfig/eos[_env]</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#启动 -FST"><span class="toc-text"> 启动 FST</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#设置存储位置"><span class="toc-text"> 设置存储位置 </span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#启用 -FST"><span class="toc-text"> 启用 FST</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -FED"><span class="toc-text"> 配置 FED</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#配置 -QuarkDB-NS"><span class="toc-text"> 配置 QuarkDB NS</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#EOS- 故障分析与解决"><span class="toc-text">EOS 故障分析与解决 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置"><span class="toc-text"> 配置 </span></a></li></ol></li></ol>
+<p> 下图展示了 EOS 的发展历史：</p>
+<div class="figure center" style="width:;"><img class="fig-img" src="eos-history.png" alt=""></div>
+<h2 id="准备工作"> 准备工作 </h2>
+<p> 为了要创建我们的 EOS 服务， 我们至少需要两个服务器节点， 一个作为 EOS MGM 主节点， 一个为 EOS MGM 从节点。这里我们将 CentOS7 作为我们的服务器操作系统。</p>
+<h2 id="安装 -EOS"> 安装 EOS</h2>
+<p>Cern 提供已经编译好的 EOS 安装包和依赖包， 我们也可以自己编译 EOS 安装包和依赖包。</p>
+<h3 id="从源中安装 -EOS"> 从源中安装 EOS</h3>
+<p> 从 Cern 的 EOS 源中安装 EOS 是最方便的。 创建一个 yum repo， 内容如下：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[eos-citrine]
+name=EOS binaries from EOS project, citrine branch
+baseurl=http://cern.ch/storage-ci/eos/citrine/tag/el-$releasever/$basearch/
+enabled=1
+gpgcheck=0
+priority=10
+
+[eos-citrine-deps]
+name=EOS dependencies from EOS project, citrine branch
+baseurl=http://cern.ch/storage-ci/eos/citrine-depend/el-$releasever/$basearch/
+enabled=1
+gpgcheck=0
+priority=10
+</code></pre>
+<p> 并复制到 <code>/etc/yum.repos.d/</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum makecache && sudo yum update
+$ sudo yum install -y eos-folly eos-server eos-client eos-fuse eos-fusex
+</code></pre>
+<p> 目前 EOS 稳定版本是 <code>citrine</code>, 版本号为 <code>4.3.12</code>。</p>
+<h3 id="手动编译 -EOS-RPM- 包"> 手动编译 EOS RPM 包 </h3>
+<h4 id="安装依赖库"> 安装依赖库 </h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y yum-utils rpm-build rpm-build-libs yum-plugin-priorities
+$ sudo yum install -y zlib-static zlib-devel bzip2-devel bzip2-devel
+#### Download from cern
+$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-3.3.1-2.el7.cern.x86_64.rpm
+$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-compiler-3.3.1-2.el7.cern.x86_64.rpm
+$ sudo yum install -y http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/protobuf3-devel-3.3.1-2.el7.cern.x86_64.rpm
+#### eos-server dependence
+$ sudo yum install -y openldap-devel e2fsprogs-devel libmicrohttpd libmicrohttpd-devel
+#### libmicrohttpd dependence
+$ sudo yum install -y graphviz graphviz-devel libgcrypt-devel gnutls-devel
+</code></pre>
+<h4 id="安装 -devtoolset-7"> 安装 devtoolset-7</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### centos
+$ sudo yum install -y centos-release-scl.noarch
+#### scientific linux
+$ sudo yum install -y yum-conf-repos
+$ sudo yum install -y yum-conf-softwarecollections
+####--------------------------------------------
+$ sudo yum install -y devtoolset-7-gcc devtoolset-7-gcc-c++.x86_64 devtoolset-7-gcc-plugin-devel.x86_64
+$ sudo yum install -y devtoolset-7-gcc-gfortran.x86_64 devtoolset-7-gdb.x86_64 devtoolset-7-strace.x86_64 devtoolset-7.x86_64
+#### enable devltoolset
+$ scl enable devtoolset-7 bash
+</code></pre>
+<h4 id="编译 -eos-folly"> 编译 eos-folly</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ git clone https://gitlab.cern.ch/eos/eos-folly && cd eos-folly
+$ mkdir -p ~/rpmbuild/SOURCES
+$ cp SConstruct.double-conversion ~/rpmbuild/SOURCES/
+$ sudo yum install python2-scons openssl-devel libevent-devel cmake3 cmake devtoolset-6
+$ sed -i "s|devtoolset-6|devtoolset-7|g" eos-folly.spec
+$ rpmbuild --undefine=_disable_source_fetch -ba eos-folly.spec
+</code></pre>
+<h4 id="编译 -eos-rocksdb"> 编译 eos-rocksdb</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ git clone https://gitlab.cern.ch/eos/eos-rocksdb && cd eos-rocksdb
+$ rpmbuild --undefine=_disable_source_fetch -ba eos-rocksdb.spec
+</code></pre>
+<h4 id="编译 -EOS"> 编译 EOS</h4>
+<p> 下载源码包：</p>
+<pre class=" language-language-bash"><code class="language-language-bash">#### Download eos from github
+$ git clone https://gitlab.cern.ch/eos/eos
+$ mv eos eos-citrine-4.3.12-1
+$ tar cvzf eos-citrine-4.3.12-1.tar.bz2 eos-citrine-4.3.12-1
+$ mv eos-citrine-4.3.12-1.tar.gz ~/rpmbuild/SOURCES/
+$ cd eos-citrine-4.3.12-1 && cp eos.spec.in eos.spec
+$ sed -i -e "s|@CPACK_PACKAGE_RELEASE@|1|g" -e "s|@CPACK_PACKAGE_VERSION_MAJOR@|4|g"  eos.spec
+$ sed -i -e "s|@CPACK_PACKAGE_NAME@|eos-citrine|g" -e "s|@CPACK_PACKAGE_VERSION|4.3.12|g" eos.spec
+#### depends
+$ sed -i "s|2017.09.18.00-4|2017.09.18.00-5|g" eos.spec
+#### without server
+$ rpmbuild --undefine=_disable_source_fetch --with server -ba eos.spec
+#### with server
+## build libmicrohttpd
+$ cd microhttpd
+$ cp vmem.patch epoll.patch fdshift.patch ~/rpmbuild/SOURCES/
+$ rpmbuild --undefine=_disable_source_fetch -ba libmicrohttpd.spec
+$ sudo rpm -ivhU ~/rpmbuild/RPMS/x86_64/libmicrohttpd-* && cd ..
+## build eos with server
+$ rpmbuild --undefine=_disable_source_fetch --with server -ba eos.spec
+</code></pre>
+<p> 编译好后, 安装相应的包即可.</p>
+<h2 id="配置 -EOS- 服务"> 配置 EOS 服务 </h2>
+<p>EOS 有三个基本守护进程, 作为 OFS 插件跑在 xrootd 服务内.</p>
+<ol>
+<li>MGM - 管理服务器 (名字空间, 存储池配置, 布局与读取调度)</li>
+<li>MQ - 无状态异步消息传递服务器 </li>
+<li>FST - 文件存储服务器, 根据文件 ID 存储文件 </li>
+</ol>
+<p> 对于 名字空间和配置有副本的情况, 还有第四个守护进程 <br>
+4. SYNC - 变更日志与配置文件同步服务器 </p>
+<div class="figure center" style="width:;"><img class="fig-img" src="architecture.png" alt=""></div>
+<p> 复制一份配置文件到 <code>/etc/sysconfig/eos[_env]</code></p>
+<pre class=" language-language-bash"><code class="language-language-bash">### for SL 6
+$ cp /etc/sysconfig/eos.example /etc/sysconfig/eos
+### for SL 6
+$ cp /etc/syconfig/eos_env.example /etc/sysconfig/eos_env
+</code></pre>
+<h3 id="配置 -MGM"> 配置 MGM</h3>
+<h4 id="更改 -etc-sysconfig-eos-env"> 更改 <code>/etc/sysconfig/eos[_env]</code></h4>
+<p> 修改如下相应的量变:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### define roles of daemons to run on this node
+### here for management, message broker, sync and fed serfice
+XRD_ROLES="mq mgm fed sync global-mq"
+### EOS instance name
+EOS_INSTANCE_NAME=eostest
+
+########################
+EOS_MGM_HOST=localhost
+EOS_BROKER_URL=root://localhost:1097//eos/
+EOS_MGM_MASTER1=eos01.amito.me
+EOS_MGM_MASTER2=eos02.amito.me
+EOS_MGM_ALIAS=eos01.amito.me
+EOS_FUSE_MGM_ALIAS=eos01.amito.me
+</code></pre>
+<h4 id="修改 -etc-xrd-cf-mgm"> 修改 <code>/etc/xrd.cf.mgm</code></h4>
+<p> 按需修改 <code>/etc/xrd.cf.mgm </code> 中如下的配置 </p>
+<pre class=" language-language-bash"><code class="language-language-bash"># sec.protocol krb5
+# sec.protocol gsi
+sec.protocol unix
+sec.protocol sss -c /etc/eos.keytab -s /etc/eos.keytab
+# sec.protocol krb5 -exptkn:/var/eos/auth/krb5#<uid> host/<host>@CERN.CH
+# sec.protocol krb5 host/<host>@CERN.CH
+sec.protbind localhost.localdomain unix sss
+sec.protbind localhost unix sss
+sec.protbind * unix sss
+### if using quarkdb as ns
+mgmofs.cfgtype quarkdb
+mgmofs.nslib libEosNsQuarkdb.so
+mgmofs.qdbcluster ceph0:7777 ceph1:7777 ceph2:7777 ceph3:7777
+###### if quarkdb using password
+###### /etc/quarkdb.passwd.eos permission 400
+mgmofs.qdbpassword_file /etc/quarkdb.passwd.eos
+</code></pre>
+<h4 id="生成 -eos-keytab"> 生成 <code>eos.keytab</code></h4>
+<p> 不然会出问题:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ test -f /etc/eos.keytab && rm -f /etc/eos.keytab
+$ yes | xrdsssadmin -k eos -u daemon -g daemon add /etc/eos.keytab >& /dev/null
+$ chown daemon:daemon /etc/eos.keytab >& /dev/null ; chmod 400 /etc/eos.keytab
+</code></pre>
+<h4 id="设置 -Master-Slave"> 设置 <code>Master/Slave</code></h4>
+<pre class=" language-language-bash"><code class="language-language-bash">### Master
+$ systemctl enable --now eos@master.service
+### Slave
+$ systemctl enable --now eos@slave.service
+### on master and slave nodes
+$ systemctl enable --now eos.service
+$ systemctl enable --now eos@mgm.service
+### enable compact
+$ eos -b ns compact on 1 86400
+</code></pre>
+<h4 id="启动 -EOS"> 启动 EOS</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">### start
+$ systemctl start eos
+### status
+$ systemctl status eos@*
+### stop
+$ systemctl kill eos
+</code></pre>
+<h4 id="NTP- 时间同步">NTP 时间同步 </h4>
+<p> 增加定时任务, 每半个小时同步一次时间:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">*/30 * * * * /usrsbin/ntpdate -s pool.ntp.org >/dev/null 2>&1
+</code></pre>
+<h3 id="配置 -FST"> 配置 FST</h3>
+<p>FST 节点的配置相对简单一点.</p>
+<h4 id="修改 -etc-sysconfig-eos-env"> 修改 <code>/etc/sysconfig/eos[_env]</code></h4>
+<pre class=" language-language-bash"><code class="language-language-bash">### define roles of daemons to run on this node
+### here for management, message broker, sync and fed serfice
+XRD_ROLES="fsd"
+########################
+EOS_BROKER_URL=root://eos01.amito.me:1097//eos/
+EOS_MGM_MASTER1=eos01.amito.me
+EOS_MGM_MASTER2=eos02.amito.me
+EOS_MGM_ALIAS=eos01.amito.me
+EOS_FUSE_MGM_ALIAS=eos01.amito.me
+</code></pre>
+<h4 id="启动 -FST"> 启动 FST</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ systemctl enable --now eos
+$ systemctl enable --now eos@fst
+$ systemctl status eos@fst
+</code></pre>
+<h4 id="设置存储位置"> 设置存储位置 </h4>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir /data01 && chown -R daemon:daemon /data01
+</code></pre>
+<h4 id="启用 -FST"> 启用 FST</h4>
+<p> 在 MGM 上, 进入 EOS 控制台 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ eos
+EOS Console [root://localhost]|/> node set fst01.amito.me on
+### make sure fst01.amito.me is on
+EOS Console [root://localhost]|/> node ls
+### a3bxxx is uuid of the partition
+EOS Console [root://localhost]|/> fs add -m 1 a3b0d210-4cce-413f-91ed-13ee9a5b9dc4 fsd01.amito.me:1095 /data01
+#### EOS 认证
+EOS Console [root://localhost]|/> vib enable unix
+EOS Console [root://localhost]|/> vib enable sss
+#### FUSE 配置
+EOS Console [root://localhost]|/> vid set map -tident "*@fs.amito.me" vuid:0
+EOS Console [root://localhost]|/> vid set map -tident "*@fs.amito.me" vgid:0
+EOS Console [root://localhost]|/> vid add gateway login* unix
+EOS Console [root://localhost]|/> vid add gateway vm* unix
+#### 启动 FST
+EOS Console [root://localhost]|/> fs boot 1
+EOS Console [root://localhost]|/> fs config 1 configstatus rw
+EOS Console [root://localhost]|/> group set default on
+</code></pre>
+<h3 id="配置 -FED"> 配置 FED</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir -p /var/spool/xrootd/fed
+$ sudo chown -R daemon:daemon /var/spool/xrootd/fed
+</code></pre>
+<h3 id="配置 -QuarkDB-NS"> 配置 QuarkDB NS</h3>
+<p> 参考 <a href="/2018/Configure-EOS-to-Use-QuarkDB-for-Namespace/"> 配置 EOS 使用 QuarkDB 作为 NS</a>。</p>
+<h2 id="EOS- 故障分析与解决">EOS 故障分析与解决 </h2>
+<h3 id="配置"> 配置 </h3>
+<ol>
+<li><code>Unable process keytable /etc/eos.keytab; No such file or directory</code></li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ chmod 600 /etc/eos.keytab 2>/dev/null; unlink /etc/eos.keytab 2>/dev/null; yes | xrdsssadmin -k eos -u daemon -g daemon add /etc/eos.keytab >& /dev/null; chown daemon:daemon /etc/eos.keytab >& /dev/null ; chmod 400 /etc/eos.keytab;"
+</code></pre>
+<ol start="2">
+<li> 主从 MGM 节点通信出现 <code>Decrypt key not found</code>, 可能是 <code>/etc/eos.keytab</code> 不一致导致的。</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">[root@mgm-master-node ~]$ scp /etc/eos.keytab mgm-slave-node:/etc
+</code></pre>
+<ol start="3">
+<li><code>eos vid ls</code> 出现如下权限错误的问题：</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">error: errc=3010 msg="Unable to execute proc command - you don't have the requested permissions for that operation (2) /proc/admin/; Operation not permitted"
+</code></pre>
+<p> 通过查看用户 ID，</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ eos whoami
+Virtual Identity: uid=99 (99) gid=99 (99) [authz:unix] host=ceph1
+</code></pre>
+<p> 发现 <code>host</code> 不是 <code>localhost</code>， <code>/etc/hosts</code> 中对 <code>127.0.0.1</code> 做了修改 </p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ cat /etc/hosts
+127.0.0.1   ceph1 localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         ceph1 localhost localhost.localdomain localhost6 localhost6.localdomain6
+</code></pre>
+<p> 去掉 <code>ceph1</code>， 将其改回来，就可以了。<br>
+4. <code>/var/log/eos/tx/transfer-archive.log</code> not found</p>
+<pre class=" language-language-bash"><code class="language-language-bash">$ mkdir -p /var/log/eos/tx && chown -R daemon:daemon /var/log/eos
+</code></pre>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/EOS/">EOS</a> <a class="tag tag--primary tag--small t-link" href="/tags/Storage/">Storage</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/"
+                    data-tooltip="使用 CBT 来对 Ceph 集群进行性能测试"
+                    aria-label="上一篇: 使用 CBT 来对 Ceph 集群进行性能测试"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Ceph-Cluster-Performance-Benchmark/"
+                    data-tooltip="Ceph 集群的性能测试"
+                    aria-label="下一篇: Ceph 集群的性能测试"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/"
+                    data-tooltip="使用 CBT 来对 Ceph 集群进行性能测试"
+                    aria-label="上一篇: 使用 CBT 来对 Ceph 集群进行性能测试"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Ceph-Cluster-Performance-Benchmark/"
+                    data-tooltip="Ceph 集群的性能测试"
+                    aria-label="下一篇: Ceph 集群的性能测试"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Install-and-Configure-EOS-on-CentOS-7/';
+              
+            this.page.identifier = '2018/Install-and-Configure-EOS-on-CentOS-7/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

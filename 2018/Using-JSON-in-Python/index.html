@@ -1,0 +1,1008 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>在 Python 中使用 JSON 模块处理 JSON 文件 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Json 是一种非常通用的数据格式, 在 Python 中使用也非常方便. Python 中有内置的 json 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.\n\n\n\nPython 中的 JSON 模块\n要使用 json 非常简单, 直接 导入该模块就行.\nimport json\n## or simply\nimport json as js\n\n序列化和反序列化\n将 python 数据 (list or dict) 编码成 json 数据的过程通常叫 序列化 (serialization), 相反地则叫做 反序列化(deserialization). Python 中还有类似的模块 - pickle 和 marshal, 三者的函数是类似的, 但是后两个是 python 专用的, json 则是通用的.\nJSON 数据反序列化\njson 模块提供了从 json 文件和 json 数据转换到 Python 数据格式的接口: json.load() 和 json.loads().  json 到 python 的数据格式转换如下表所示.\n\n\n\nJSON\nPython\n\n\n\n\nobject\ndict\n\n\narray\narray\n\n\nstring\nstr\n\n\nnumber(int)\nint\n\n\nnumber(real)\nfloat\n\n\ntrue\nTrue\n\n\nfalse\nFalse\n\n\nnull\nNone\n\n\n\njson.load() 接受一个 file-like object (open(\"file\"))作为参数, 而不是文件名, json.loads() 则是接受一个 string 作为输入.\n作为开始, 我们先从一个 json 文件中通过 json.load()来读取数据. 下面是一个简单的 json 文件.\n{\n    \"name\": \"Amito\",\n    \"email\": \"me@amito.me\"\n}\n\n我们在 Python 中导入 json 文件\n>>>import json\n>>>data=json.load(open(\"simple.json\",\"r\")\n>>>print(data)\n{'name': 'Amito', 'email': 'me@amito.me'}\n\n如果你有从别处获取的 json 数据或者 json 格式的 string, 可以通过 json.loads() 来转换到 Python 格式, 多出来的 s 可能就是代表了 string.\n>>> json_string=\"\"\"\n{\n    \"name\":  \"Amito\",\n    \"email\": \"me@amito.me\",\n    \"note\":  \"from json string\"\n}\n\"\"\"\n>>>data = json.loads(json_string)\n>>>print(data)\n{'name': 'Amito', 'email': 'me@amito.me', 'note': 'from json string'}\n\nPython 数据序列化\n下面是 Python 对象序列化时和 json 数据格式之间的一个直观的对应.\n\n\n\nPython\nJSON\n\n\n\n\ndict\nobject\n\n\nlist, tuple\narray\n\n\nstr\nstring\n\n\nint, long,float\nnumber\n\n\nTrue\ntrue\n\n\nFalse\nfalse\n\n\nNone\nnull\n\n\n\njson.dump() 会将 python 数据序列化到一个文件对象中, json.dumps() 则会序列化到一个 json string 中. 仍旧以上面的 json 文件作为例子\n>>>data=json.load(open(\"simple.json\",\"r\"))\n>>>type(data)\ndict\n#### dump to a file object\n>>>with open(\"simple.de.json\",\"w\") as out:\n       json.dump(data, out)\n### dumps  to a string\n>>>json_string = json.dumps(data)\n>>>type(str)\nstr\n>>>print(json_string)\n{'name': 'Amito', 'email': 'me@amito.me', 'note': 'from json string'}\n#### beautify json_string and print json pretty\n>>>json_string=json.dumps(data,indent=4)\n>>>print(json_string)\n{\n    \"name\":  \"Amito\",\n    \"email\": \"me@amito.me\",\n    \"note\":  \"from json string\"\n}\n\n自定义格式数据序列化和反序列化\ntodo…\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-09-04T08:46:17+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-09-04T08:46:17+08:00","description":"Json 是一种非常通用的数据格式, 在Python中使用也非常方便. Python中有内置的 json 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.","headline":"在 Python 中使用 JSON 模块处理 JSON 文件","image":["python.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Using-JSON-in-Python/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Using-JSON-in-Python/","keywords":"Python, JSON","thumbnailUrl":"python.png"}</script>
+    <meta name="description" content="Json 是一种非常通用的数据格式, 在Python中使用也非常方便. Python中有内置的 json 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.">
+<meta name="keywords" content="Python,JSON">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="在 Python 中使用 JSON 模块处理 JSON 文件">
+<meta property="og:url" content="https://amito.me/2018/Using-JSON-in-Python/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Json 是一种非常通用的数据格式, 在Python中使用也非常方便. Python中有内置的 json 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.742Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="在 Python 中使用 JSON 模块处理 JSON 文件">
+<meta name="twitter:description" content="Json 是一种非常通用的数据格式, 在Python中使用也非常方便. Python中有内置的 json 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Using-JSON-in-Python/python.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Using-JSON-in-Python/python.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            在 Python 中使用 JSON 模块处理 JSON 文件
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-09-04T08:46:17+08:00">
+	
+		    9月 04, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Python/">Python</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Json 是一种非常通用的数据格式, 在 Python 中使用也非常方便. Python 中有内置的 <code>json</code> 模块, 用来编码和解码 json 数据, 其使用也很简单, 在日常运维工作中非常实用.</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Python 中的 JSON- 模块"><span class="toc-text">Python 中的 JSON 模块</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#序列化和反序列化"><span class="toc-text">序列化和反序列化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#JSON 数据反序列化"><span class="toc-text">JSON 数据反序列化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Python- 数据序列化"><span class="toc-text">Python 数据序列化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#自定义格式数据序列化和反序列化"><span class="toc-text">自定义格式数据序列化和反序列化</span></a></li></ol>
+<h2 id="Python 中的 JSON- 模块">Python 中的 JSON 模块</h2>
+<p>要使用 json 非常简单, 直接 导入该模块就行.</p>
+<pre class=" language-language-python"><code class="language-language-python">import json
+## or simply
+import json as js
+</code></pre>
+<h2 id="序列化和反序列化">序列化和反序列化</h2>
+<p>将 python 数据 (list or dict) 编码成 json 数据的过程通常叫<code> 序列化 (serialization)</code>, 相反地则叫做<code> 反序列化(deserialization)</code>. Python 中还有类似的模块 - <code>pickle</code> 和 <code>marshal</code>, 三者的函数是类似的, 但是后两个是 python 专用的, json 则是通用的.</p>
+<h2 id="JSON 数据反序列化">JSON 数据反序列化</h2>
+<p>json 模块提供了从 json 文件和 json 数据转换到 Python 数据格式的接口: <code>json.load()</code> 和 <code>json.loads()</code>.  json 到 python 的数据格式转换如下表所示.</p>
+<table>
+<thead>
+<tr>
+<th><strong>JSON</strong></th>
+<th><strong>Python</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>object</td>
+<td>dict</td>
+</tr>
+<tr>
+<td>array</td>
+<td>array</td>
+</tr>
+<tr>
+<td>string</td>
+<td>str</td>
+</tr>
+<tr>
+<td>number(int)</td>
+<td>int</td>
+</tr>
+<tr>
+<td>number(real)</td>
+<td>float</td>
+</tr>
+<tr>
+<td>true</td>
+<td>True</td>
+</tr>
+<tr>
+<td>false</td>
+<td>False</td>
+</tr>
+<tr>
+<td>null</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p><code>json.load()</code> 接受一个 file-like object (<code>open("file")</code>)作为参数, 而不是文件名, <code>json.loads()</code> 则是接受一个 string 作为输入.<br>
+作为开始, 我们先从一个 json 文件中通过 json.load()来读取数据. 下面是一个简单的 json 文件.</p>
+<pre class=" language-language-json"><code class="language-language-json">{
+    "name": "Amito",
+    "email": "me@amito.me"
+}
+</code></pre>
+<p>我们在 Python 中导入 json 文件</p>
+<pre class=" language-language-python"><code class="language-language-python">>>>import json
+>>>data=json.load(open("simple.json","r")
+>>>print(data)
+{'name': 'Amito', 'email': 'me@amito.me'}
+</code></pre>
+<p>如果你有从别处获取的 json 数据或者 json 格式的 string, 可以通过 <code>json.loads()</code> 来转换到 Python 格式, 多出来的 <code>s</code> 可能就是代表了 <code>string</code>.</p>
+<pre class=" language-language-python"><code class="language-language-python">>>> json_string="""
+{
+    "name":  "Amito",
+    "email": "me@amito.me",
+    "note":  "from json string"
+}
+"""
+>>>data = json.loads(json_string)
+>>>print(data)
+{'name': 'Amito', 'email': 'me@amito.me', 'note': 'from json string'}
+</code></pre>
+<h2 id="Python- 数据序列化">Python 数据序列化</h2>
+<p>下面是 Python 对象序列化时和 json 数据格式之间的一个直观的对应.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Python</strong></th>
+<th><strong>JSON</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>dict</td>
+<td>object</td>
+</tr>
+<tr>
+<td>list, tuple</td>
+<td>array</td>
+</tr>
+<tr>
+<td>str</td>
+<td>string</td>
+</tr>
+<tr>
+<td>int, long,float</td>
+<td>number</td>
+</tr>
+<tr>
+<td>True</td>
+<td>true</td>
+</tr>
+<tr>
+<td>False</td>
+<td>false</td>
+</tr>
+<tr>
+<td>None</td>
+<td>null</td>
+</tr>
+</tbody>
+</table>
+<p><code>json.dump()</code> 会将 python 数据序列化到一个文件对象中, <code>json.dumps()</code> 则会序列化到一个 json string 中. 仍旧以上面的 json 文件作为例子</p>
+<pre class=" language-language-python"><code class="language-language-python">>>>data=json.load(open("simple.json","r"))
+>>>type(data)
+dict
+#### dump to a file object
+>>>with open("simple.de.json","w") as out:
+       json.dump(data, out)
+### dumps  to a string
+>>>json_string = json.dumps(data)
+>>>type(str)
+str
+>>>print(json_string)
+{'name': 'Amito', 'email': 'me@amito.me', 'note': 'from json string'}
+#### beautify json_string and print json pretty
+>>>json_string=json.dumps(data,indent=4)
+>>>print(json_string)
+{
+    "name":  "Amito",
+    "email": "me@amito.me",
+    "note":  "from json string"
+}
+</code></pre>
+<h2 id="自定义格式数据序列化和反序列化">自定义格式数据序列化和反序列化</h2>
+<p>todo…</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/JSON/">JSON</a> <a class="tag tag--primary tag--small t-link" href="/tags/Python/">Python</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-SH-in-Python/"
+                    data-tooltip="在 Python 中使用 SH 模块执行 SHELL 命令"
+                    aria-label="上一篇: 在 Python 中使用 SH 模块执行 SHELL 命令"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Introduction-to-Redis/"
+                    data-tooltip="Redis 基本操作入门"
+                    aria-label="下一篇: Redis 基本操作入门"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Using-SH-in-Python/"
+                    data-tooltip="在 Python 中使用 SH 模块执行 SHELL 命令"
+                    aria-label="上一篇: 在 Python 中使用 SH 模块执行 SHELL 命令"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Introduction-to-Redis/"
+                    data-tooltip="Redis 基本操作入门"
+                    aria-label="下一篇: Redis 基本操作入门"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-JSON-in-Python/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Using-JSON-in-Python/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Using-JSON-in-Python/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Using-JSON-in-Python/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Using-JSON-in-Python/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Using-JSON-in-Python/';
+              
+            this.page.identifier = '2018/Using-JSON-in-Python/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>

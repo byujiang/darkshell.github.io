@@ -1,0 +1,1231 @@
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="冬日の草原">
+    <title>在 CentOS 7 下安装和配置 Ceph 存储系统 - 冬日の草原</title>
+    <meta name="author" content="Yujiang Bi">
+    
+        <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
+    
+    
+        <link rel="icon" href="https://amito.me/images/favicon.ico">
+    
+    
+        
+            <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
+        
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph 项目最早起源于 Sage 就读博士期间的工作（2004 年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat 及 OpenStack 都可与 Ceph 整合以支持虚拟机镜像的后端存储。 --from &lt;&lt;Ceph 介绍及原理架构分享&gt;&gt;\n\n\n\n准备工作\n目前主要有两种 ceph 部署方案:\n\nceph-deploy - https://github.com/ceph/ceph-deploy\nceph-ansible - https://github.com/ceph/ceph-ansible\n\n我们主要使用 ceph-deploy 来部署 ceph 集群.\n软件版本\nceph-deploy 目前 (03/09/2018) 的版本是 2.0.1:\n[ceph@localhost ~]$ ceph-deploy --version\n2.0.1\n\nCeph 配置安装源:\n[ceph]\nname=Ceph noarch packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/x86_64\nenabled=1\ngpgcheck=1\ntype=rpm-md\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-noarch]\nname=Ceph noarch packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/noarch\nenabled=1\ngpgcheck=1\ntype=rpm-md\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-source]\nname=Ceph noarch packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/SRPMS\nenabled=1\ngpgcheck=1\ntype=rpm-md\ngpgkey=https://download.ceph.com/keys/release.asc\n\nCeph 目前的版本是 13.2.1 (mimic):\n[ceph@localhost ~]$ ceph --version\nceph version 13.2.1 (5533ecdc0fda920179d7ad84e0aa65a127b20d77) mimic (stable)\n\n系统版本采用的是最新的 CentOS 7.5:\n[ceph@localhost ~]$ lsb release -a\nLSB Version:\t:core-4.1-amd64:core-4.1-noarch:cxx-4.1-amd64:cxx-4.1-noarch:desktop-4.1-amd64:desktop-4.1-noarch:languages-4.1-amd64:languages-4.1-noarch:printing-4.1-amd64:printing-4.1-noarch\n[ceph@vm084021 ~]$ lsb_release  -a\nLSB Version:\t:core-4.1-amd64:core-4.1-noarch\nDistributor ID:\tCentOS\nDescription:\tCentOS Linux release 7.5.1804 (Core)\nRelease:\t7.5.1804\nCodename:\tCore\n\n集群架构\n作为一个测试集群, 为方便, 我们单独用一个 node 作为部署节点(ceph0), 用来部署集群, 三个节点(ceph1, ceph2, ceph3) 作为监督节点(monitors), 同时这三个 mon 节点也做为osd 节点.\n系统准备\n建立统一用户\n[localhost ~]$ useradd -m -d /home/ceph -r -U -u 1000 ceph\n[localhost ~]$ usermod -aG wheel ceph\n[localhost ~]$ sed -i \"s|^# %wheel|%wheel|g\" /etc/sudoers\n\n在下面的安装中都使用 ceph 用户.\n安装 ceph-deploy\n在部署节点安装 ceph-deploy:\n[ceph@ceph0 ~]$ sudo pip2 install -U ceph-deploy remoto\n\n集群节点 hosts 设置\n#### adding following lines to the end of /etc/hosts\n#### change IPs according to your servers\n10.0.1.10 ceph0 admin\n10.0.1.11 ceph1\n10.0.1.12 ceph2\n10.0.1.13 ceph3\n\n更改主机名(可选)\n将主机名更改为 /etc/hosts 中对应的名字:\necho ceph0 > /etc/hostname\n\nssh 免密登录\n[ceph@ceph0 ~]$ ssh-keygen -t rsa -b 2048\n[ceph@ceph0 ~]$ cat .ssh/id_rsa.pub >> .ssh/authorized_keys\n[ceph@ceph0 ~]$ for i in ceph1 ceph2 ceph3;do ssh-copy-id -i ~/.ssh/id_rsa.pub $i; done\n[ceph@ceph0 ~]$ for i in ceph1 ceph2 ceph3;do scp ~/.ssh/id_rsa $i:~/.ssh/; done\n\n安装配置 ntp service\n#### on ceph0\n[ceph@ceph0 ~]$ for host in {0..3};do\n> ssh ceph${host} \"sudo yum install -y ntp ntpdate\"\n> ssh ceph${host} \"sudo systemctl enable --now ntpd\"\n> done\n\n关闭 / 设置防火墙\n#### disable firewalld\n[ceph@ceph0 ~]$ for host in {0..3}; do\n> ssh ceph${host} \"sudo systemctl disable firewalld\"\n> ssh ceph${host} \"sudo systemctl stop firewalld\"\n> done\n\n安装 ceph\n[ceph@ceph0 ~]$ ceph-deploy install ceph0 ceph1 ceph2 ceph3\n\nceph-deploy 会使用 ceph@ceph0 来连接 ceph0, 所以需要做 ssh 免密登录.\n部署 Ceph\nceph 集群有一个默认的集群名 - ceph, 如果你想运行多个 ceph 集群, 可以在部署时通过--cluster name 指定一个名字. 如果在同一硬件上运行多个实例, 还需要更改默认的端口设置, 以避免冲突.\n部署 monitors\n创建 三个 monitors:\n#### hsotname ceph1/2/3 must match the actual `hostname -s` in the remote host\n[ceph@ceph0 ~]$ ceph-deploy new ceph1 ceph2 ceph3\n[ceph@ceph0 ~]$ ceph-deploy mon create ceph1 ceph2 ceph3\n#### a ceph.conf and ceph.mon.keyring will be created under current directory\n\n汇集分发 keys\n#### monitors keys\n#### wait for a while after \"ceph-deploy mon create\"\n[ceph@ceph0 ~]$ ceph-deploy gatherkeys ceph1 ceph2 ceph3\n#### distribute keys to admin nodes in cluster\n[ceph@ceph0 ~]$ ceph-deploy admin ceph0 ceph1 ceph2 ceph3\n#### change permissions\nfor i in {0..3}; do\n  ssh ceph$i \"sudo chown -R ceph:ceph /etc/ceph\";\n  ssh ceph$i \"sudo chown -R ceph:ceph /var/lib/ceph\";\n  ssh ceph$i \"sudo chown -R ceph:ceph /var/log/ceph\";\ndone\n#### function for sync ceph.conf if possible\nfunction sync-ceph{host=$(hostname)\n\tcp /etc/ceph/ceph.conf\n\tfor i in $*; do\n\t\tscp ~/ceph.conf $i:/etc/ceph/ceph.conf\n\tdone\n}\n\n\n检查集群状态\n[ceph@ceph0 ~]$ ceph -s\n  cluster:\n    id:     3cdc0d3a-6f09-4f06-977e-017e273bbb07\n    health: HEALTH_OK\n\n  services:\n    mon: 3 daemons, quorum ceph1,ceph2,ceph3\n    mgr: no daemons active\n    osd: 0 osds: 0 up, 0 in\n\n  data:\n    pools:   0 pools, 0 pgs\n    objects: 0  objects, 0\n    usage:   0 B used, 0 B / 0 B avail\n    pgs:\n\n部署 managers\n[ceph@ceph0 ~]$ ceph-deploy mgr create ceph1 ceph2 ceph3\n[ceph@ceph0 ~]$ ceph -s\n  cluster:\n    id:     3cdc0d3a-6f09-4f06-977e-017e273bbb07\n    health: HEALTH_OK\n\n  services:\n    mon: 3 daemons, quorum ceph1,ceph2, ceph3\n    mgr: ceph1(active), standbys: ceph2, ceph3\n    osd: 0 osds: 0 up, 0 in\n\n  data:\n    pools:   0 pools, 0 pgs\n    objects: 0  objects, 0\n    usage:   0 B used, 0 B / 0 B avail\n    pgs:\n\n\n部署 MDS (Optional)\n使用 ceph-deploy 创建 mds 非常简单:\n### Usage:\n[ceph@ceph0 ~]$ ceph-deploy mds create {host-name}[:{daemon-name}] [{host-name}[:{daemon-name}] ...]\n### e.g.\n[ceph@ceph0 ~]$ ceph-deploy mds create ceph0 ceph1 ceph2 ceph3\n\ndaemon-name 是可选的, 如果要在一个节点上运行多个 mds 实例, 可能需要为每个 mds 实例设定 daemon-name.\n部署 Ceph OSD\n#### ceph-deploy osd create usage\n[ceph@ceph0 ~]$ ceph-deploy osd create -h\nusage: ceph-deploy osd create [-h] [--data DATA] [--journal JOURNAL]\n                              [--zap-disk] [--fs-type FS_TYPE] [--dmcrypt]\n                              [--dmcrypt-key-dir KEYDIR] [--filestore]\n                              [--bluestore] [--block-db BLOCK_DB]\n                              [--block-wal BLOCK_WAL] [--debug]\n                              [HOST]\n\npositional arguments:\n  HOST                  Remote host to connect\n\noptional arguments:\n  -h, --help            show this help message and exit\n  --data DATA           The OSD data logical volume (vg/lv) or absolute path\n                        to device\n  --journal JOURNAL     Logical Volume (vg/lv) or path to GPT partition\n  --zap-disk            DEPRECATED - cannot zap when creating an OSD\n  --fs-type FS_TYPE     filesystem to use to format DEVICE (xfs, btrfs)\n  --dmcrypt             use dm-crypt on DEVICE\n  --dmcrypt-key-dir KEYDIR\n                        directory where dm-crypt keys are stored\n  --filestore           filestore objectstore\n  --bluestore           bluestore objectstore\n  --block-db BLOCK_DB   bluestore block.db path\n  --block-wal BLOCK_WAL\n                        bluestore block.wal path\n  --debug               Enable debug mode on remote ceph-volume calls\n\n\n在 Luminous 12.2.2 之后, Ceph 中创建一个 OSD 就开始使用 ceph-volume 了.\n创建一个 bluestore 的 OSD, 有如下几种选择:\n\nA single block device\nA block device and a block.db device\nA block device and a block.val device\nA block device ,a block.val and a block.db device\n\nblock device 也有几种选择:\n\n整块磁盘\n磁盘分区\n逻辑巻(A logical Volume of LVM)\n在使用整块磁盘和磁盘分区时, ceph-volume 默认会自动创建一个 logical volume 使用.\n\n简单块设备\n整块磁盘建立 OSD\n使用一整块磁盘建立一个 OSD, 可用如下命令:\nceph-deploy osd create [host] --data [/path/to/device] [--zap-disk]\n\n--zap-disk 是为了销毁已有的文件系统. 比如使用 ceph1 上的 /dev/sdb 来创建一个 ext4 系统的 OSD\n[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdb --fs-type ext4 --zap-disk\n\n查看 OSD 信息:\n[ceph@ceph0 ~]$ ssh ceph1 \"df -h\"\n...\n[ceph@ceph0 ~]$ ssh ceph1 \"ls /var/lib/ceph/osd/ceph-1\"\n...\n[ceph@ceph0 ~]$ ssh ceph1 \"lsblk /dev/sdb\"\n...\n\n磁盘分区\n使用一个分区来创建一个 OSD 与使用整个磁盘类似:\nceph-deploy osd create [host] --data [/path/to/device_part] [--zap-disk]\n\n注意, 磁盘格式须为GPT 分区格式(???).\n例如\n[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdc1\n\n逻辑巻\n命令格式为:\nceph-deploy osd create [host] --data [vg/lv]\n\n我们可以使用 loop 文件来创建 逻辑巻, 再创建 OSD.\n[ceph@ceph0 ~]$ ssh ceph@ceph1\n[ceph$ceph1 ~]$ dd if=/dev/zero of=ceph.0.img bs=1M count 2048\n[ceph@ceph1 ~]$ sudo losetup /dev/loop0 /home/ceph/ceph.0.img\n[ceph@ceph1 ~]$ sudo pvcreate /dev/loop\n[ceph@ceph1 ~]$ sudo vgcreate sdavg /dev/loop0\n[ceph@ceph1 ~]$ sudo lvcreate sdalv -l 100%FREE sdavg\n[ceph@ceph1 ~]$ exit\n[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 -data sdavg/sdalv\n\n若是指定--data /dev/sdavg/sdalv, ceph-volume 会认为是块设备而报错. 这一种只是自己手动创建了 PV, VG, LV, 其他与前面两种方式一样.\n带有 block.db 或 / 和 block.wal 的块设备\n当指定 block.db 或 / 和 block.wal 时, 对应的设备只能为  磁盘分区  或逻辑巻. --data 的情况与简单块设备情况类似, 我们选择整个磁盘为例.\nblock.db 和 block.wal 大小\n默认情况下, block.db 和 block.wal 都比较小, block.db=0, block.wal=100663296.\n[ceph@ceph0 ~]$ ceph-config --show-config|grep bluestore_block\nbluestore_block_create = true\nbluestore_block_db_create = false\nbluestore_block_db_path\nbluestore_block_db_size =\nbluestore_block_path\nbluestore_block_preallocate_file = false\nbluestore_block_size = 10737418240\nbluestore_block_wal_create = false\nbluestore_block_wal_path\nbluestore_block_wal_size = 100663296\n\n所以, 用来存储 block.db 和 block.wal 的分区或 逻辑巻容量不用太大. 这里我们选择 10G.\n磁盘分区\n基本命令格式为\nceph-deploy osd create [host] --data [/path/to/device] --block-db [/path/to/device-partition] --block-wal [/path/to/device-partition]\n\n例如\n[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdd --block-db /dev/sde1 --block-wal /dev/sde2\n\n与前面相比, 只是多指定了 block-db 和 block-wal的位置.\n逻辑巻\nceph-deploy osd create [host] --data [/path/to/device] --block-db [vg/lv]  --block-wal [vg/lv]\n\n例如\n[ceph@ceph0 ~]$ ssh ceph1\n[ceph@ceph1 ~]$ pvcreate /dev/sdh\n[ceph@ceph1 ~]$ vgcreate sdhvg /dev/sdh\n[ceph@ceph1 ~]$ lvcreate -n db-lv-0 -L 4G sdhvg\n[ceph@ceph1 ~]$ lvcreate -n wal-lv-0 -L 8G sdhvg\n[ceph@ceph1 ~]$ exit\n[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdg --block-db sdhvg/db-lv-0 --block-wal sdhvg/wal-lv-0\n\n与前面一样, 也是多指定了--block-db 和 --block-wal 的位置. 需要注意的是, --block-db 和 --block-wal 的格式为 vg/lv, 而不能是 /dev/vg/lv, 否则会报错.\n移除 OSD\n如果某些 OSD 在建立的时候有问题, 要移除这些 OSD, 可按照如下命令进行.\nfor id in {osds_to_be_removed}; do\n  ## mark osd out\n  ceph osd out $i\n  ## remove osd from crush map\n  ceph osd crush remove osd.${i}\n  ## delete osd authencation key\n  ceph auth del osd.${i}\n  ## remove osd finally\n  ceph osd rm ${i}\ndone\n\n自动部署\n基于 ceph-deploy, 我们可以开发一个自动部署 Ceph 的脚本。 设定好 Ceph 集群的配置，比如下面这样\n{\n        \"cluster\": \"ceph\",\n        \"install\": [\"ceph0\", \"ceph1\", \"ceph2\", \"ceph3\"],\n        \"mon\": [\"ceph1\", \"ceph2\", \"ceph3\"],\n        \"mgr\": [\"ceph1\", \"ceph2\", \"ceph3\"],\n        \"admin\": [\"ceph1\", \"ceph2\", \"ceph3\"],\n        \"osd\":[\n                {\n                        \"host\": \"ceph1\",\n                        \"data\": [\"sdavg/sdalv\", \"sdbvg/sdblv\", \"sdcvg/sdclv\"]\n                },\n                {\n                        \"host\": \"ceph2\",\n                        \"data\": [\"sdavg/sdalv\", \"sdbvg/sdblv\", \"sdcvg/sdclv\"]\n                },\n                {\n                        \"host\": \"ceph3\",\n                        \"data\": [\"sdavg/sdalv\", \"sdbvg/sdblv\", \"sdcvg/sdclv\"]\n                }\n        ],\n        \"pool\":[\n                {\n                        \"name\": \"rbd\",\n                        \"pg_num\": 256,\n                        \"pgp_num\": 256\n                },\n                {\n                        \"name\": \"images\",\n                        \"pg_num\": 256,\n                        \"pgp_num\": 256\n                }\n\n}\n\n就可以用 Python 写一个简单脚本来自动部署 Ceph。\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-08-21T10:18:34+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-08-21T10:18:34+08:00","description":"Ceph是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph项目最早起源于Sage就读博士期间的工作（2004年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat及OpenStack都可与Ceph整合以支持虚拟机镜像的后端存储。 --from &lt;&lt;Ceph 介绍及原理架构分享&gt;&gt;","headline":"在 CentOS 7 下安装和配置 Ceph 存储系统","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/","keywords":"Ceph, Linux","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="Ceph是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph项目最早起源于Sage就读博士期间的工作（2004年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat及OpenStack都可与Ceph整合以支持虚拟机镜像的后端存储。 --from &amp;lt;&amp;lt;Ceph 介绍及原理架构分享&amp;gt;&amp;gt;">
+<meta name="keywords" content="Ceph,Linux">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="在 CentOS 7 下安装和配置 Ceph 存储系统">
+<meta property="og:url" content="https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/index.html">
+<meta property="og:site_name" content="冬日の草原">
+<meta property="og:description" content="Ceph是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph项目最早起源于Sage就读博士期间的工作（2004年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat及OpenStack都可与Ceph整合以支持虚拟机镜像的后端存储。 --from &amp;lt;&amp;lt;Ceph 介绍及原理架构分享&amp;gt;&amp;gt;">
+<meta property="og:locale" content="zh-cn">
+<meta property="og:updated_time" content="2020-04-13T03:20:25.721Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="在 CentOS 7 下安装和配置 Ceph 存储系统">
+<meta name="twitter:description" content="Ceph是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph项目最早起源于Sage就读博士期间的工作（2004年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat及OpenStack都可与Ceph整合以支持虚拟机镜像的后端存储。 --from &amp;lt;&amp;lt;Ceph 介绍及原理架构分享&amp;gt;&amp;gt;">
+<meta name="twitter:creator" content="@byujiang">
+    
+    
+        
+            <meta property="fb:admins" content="892874147463767"/>
+        
+    
+    
+        <meta property="og:image" content="https://amito.me/images/bio.jpg"/>
+    
+    
+        <meta property="og:image" content="https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/ceph.png"/>
+        <meta class="swiftype" name="image" data-type="enum" content="https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/ceph.png"/>
+    
+    
+    
+    <!--STYLES-->
+    <link rel="stylesheet" href="/assets/css/style-tezmfre0lh5rmg4t8dwwir4ug0e4vfxbyvizyx3l9dl4t2xeazqzekpcj3jq.min.css">
+    <!--STYLES END-->
+    
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-46872566-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-46872566-3');
+    </script>
+
+
+    
+    
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<script>
+		(adsbygoogle = window.adsbygoogle || []).push({
+			google_ad_client: "ca-pub-9943170083368654",
+			enable_page_level_ads: true
+		});
+	</script>
+
+
+
+    
+        
+    
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css"><!-- hexo-inject:begin --><!-- hexo-inject:end --></head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="2">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/ "
+            aria-label=""
+        >
+            冬日の草原
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="打开链接: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="2">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="阅读有关作者的更多信息"
+                >
+                    <img class="sidebar-profile-picture" src="/images/bio.jpg" alt="作者的图片"/>
+                </a>
+                <h4 class="sidebar-profile-name">Yujiang Bi</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>What dosn’t kill makes you stranger</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="首页"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">首页</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="分类"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">分类</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-tags"
+                            
+                            rel="noopener"
+                            title="标签"
+                        >
+                        <i class="sidebar-button-icon fa fa-tags" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">标签</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="归档"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">归档</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link open-algolia-search"
+                            href="#search"
+                            
+                            rel="noopener"
+                            title="搜索"
+                        >
+                        <i class="sidebar-button-icon fa fa-search" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">搜索</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="关于"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">关于</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://twitter.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Twitter"
+                        >
+                        <i class="sidebar-button-icon fab fa-twitter" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Twitter</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://facebook.com/byujiang"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="Facebook"
+                        >
+                        <i class="sidebar-button-icon fab fa-facebook" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Facebook</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.linkedin.com/profile/"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="LinkedIn"
+                        >
+                        <i class="sidebar-button-icon fab fa-linkedin" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">LinkedIn</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="mailto:byujiang@gmail.com"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="邮箱"
+                        >
+                        <i class="sidebar-button-icon fa fa-envelope" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">邮箱</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/atom.xml"
+                            
+                            rel="noopener"
+                            title="RSS"
+                        >
+                        <i class="sidebar-button-icon fa fa-rss" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">RSS</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/donate"
+                            
+                            rel="noopener"
+                            title="donate"
+                        >
+                        <i class="sidebar-button-icon fa fa-heart" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">donate</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/links"
+                            
+                            rel="noopener"
+                            title="links"
+                        >
+                        <i class="sidebar-button-icon fa fa-link" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">links</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://www.vultr.com/?ref=6840862"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="vultr"
+                        >
+                        <i class="sidebar-button-icon fa fa-cloud" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">vultr</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="2"
+                 class="
+                        hasCoverMetaIn
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-left">
+    
+        <h1 class="post-title">
+            在 CentOS 7 下安装和配置 Ceph 存储系统
+        </h1>
+    
+    
+        <div class="post-meta">
+    <time datetime="2018-08-21T10:18:34+08:00">
+	
+		    8月 21, 2018
+    	
+    </time>
+    
+        <span>发布在 </span>
+        
+    <a class="category-link" href="/categories/Ceph/">Ceph</a>
+
+
+    
+</div>
+
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph 是一个统一的分布式存储系统，设计初衷是提供较好的性能、可靠性和可扩展性。 Ceph 项目最早起源于 Sage 就读博士期间的工作（2004 年），并随后贡献给开源社区。在经过了数年的发展之后，目前已得到众多云计算厂商的支持并被广泛应用。RedHat 及 OpenStack 都可与 Ceph 整合以支持虚拟机镜像的后端存储。 --from &lt;&lt;<a href="http://www.talkwithtrend.com/Article/241543" target="_blank" rel="noopener">Ceph 介绍及原理架构分享</a>&gt;&gt;</p>
+<a id="more"></a>
+<hr width="100%" color="#C0C0C0" size="2">
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#准备工作"><span class="toc-text">准备工作</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#软件版本"><span class="toc-text">软件版本</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#集群架构"><span class="toc-text">集群架构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#系统准备"><span class="toc-text">系统准备</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#建立统一用户"><span class="toc-text">建立统一用户</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 -ceph-deploy"><span class="toc-text">安装 ceph-deploy</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#集群节点 -hosts- 设置"><span class="toc-text">集群节点 hosts 设置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#更改主机名 - 可选"><span class="toc-text">更改主机名(可选)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ssh- 免密登录"><span class="toc-text">ssh 免密登录</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装配置 -ntp-service"><span class="toc-text">安装配置 ntp service</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#关闭 - 设置防火墙"><span class="toc-text">关闭 / 设置防火墙</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#安装 ceph"><span class="toc-text">安装 ceph</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#部署 -Ceph"><span class="toc-text">部署 Ceph</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#部署 -monitors"><span class="toc-text">部署 monitors</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#创建 - 三个 -monitors"><span class="toc-text">创建 三个 monitors:</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#汇集分发 keys"><span class="toc-text">汇集分发 keys</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#检查集群状态"><span class="toc-text">检查集群状态</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#部署 -managers"><span class="toc-text">部署 managers</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#部署 -MDS-Optional"><span class="toc-text">部署 MDS (Optional)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#部署 -Ceph-OSD"><span class="toc-text">部署 Ceph OSD</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#简单块设备"><span class="toc-text">简单块设备</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#整块磁盘建立 OSD"><span class="toc-text">整块磁盘建立 OSD</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#磁盘分区"><span class="toc-text">磁盘分区</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#逻辑巻"><span class="toc-text">逻辑巻</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#带有 -block-db- 或 - 和 -block-wal 的块设备"><span class="toc-text">带有 block.db 或 / 和 block.wal 的块设备</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#block-db- 和 -block-wal- 大小"><span class="toc-text">block.db 和 block.wal 大小</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#磁盘分区 -v2"><span class="toc-text">磁盘分区</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#逻辑巻 -v2"><span class="toc-text">逻辑巻</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#移除 -OSD"><span class="toc-text">移除 OSD</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#自动部署"><span class="toc-text">自动部署</span></a></li></ol>
+<h2 id="准备工作">准备工作</h2>
+<p>目前主要有两种 ceph 部署方案:</p>
+<ul>
+<li>ceph-deploy - <a href="https://github.com/ceph/ceph-deploy" target="_blank" rel="noopener">https://github.com/ceph/ceph-deploy</a></li>
+<li>ceph-ansible - <a href="https://github.com/ceph/ceph-ansible" target="_blank" rel="noopener">https://github.com/ceph/ceph-ansible</a></li>
+</ul>
+<p>我们主要使用 ceph-deploy 来部署 ceph 集群.</p>
+<h3 id="软件版本">软件版本</h3>
+<p>ceph-deploy 目前 (<code>03/09/2018</code>) 的版本是 <code>2.0.1</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@localhost ~]$ ceph-deploy --version
+2.0.1
+</code></pre>
+<p>Ceph 配置安装源:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph]
+name=Ceph noarch packages
+baseurl=https://download.ceph.com/rpm-mimic/el7/x86_64
+enabled=1
+gpgcheck=1
+type=rpm-md
+gpgkey=https://download.ceph.com/keys/release.asc
+
+[ceph-noarch]
+name=Ceph noarch packages
+baseurl=https://download.ceph.com/rpm-mimic/el7/noarch
+enabled=1
+gpgcheck=1
+type=rpm-md
+gpgkey=https://download.ceph.com/keys/release.asc
+
+[ceph-source]
+name=Ceph noarch packages
+baseurl=https://download.ceph.com/rpm-mimic/el7/SRPMS
+enabled=1
+gpgcheck=1
+type=rpm-md
+gpgkey=https://download.ceph.com/keys/release.asc
+</code></pre>
+<p>Ceph 目前的版本是 <code>13.2.1 (mimic)</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@localhost ~]$ ceph --version
+ceph version 13.2.1 (5533ecdc0fda920179d7ad84e0aa65a127b20d77) mimic (stable)
+</code></pre>
+<p>系统版本采用的是最新的 <code>CentOS 7.5</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@localhost ~]$ lsb release -a
+LSB Version:	:core-4.1-amd64:core-4.1-noarch:cxx-4.1-amd64:cxx-4.1-noarch:desktop-4.1-amd64:desktop-4.1-noarch:languages-4.1-amd64:languages-4.1-noarch:printing-4.1-amd64:printing-4.1-noarch
+[ceph@vm084021 ~]$ lsb_release  -a
+LSB Version:	:core-4.1-amd64:core-4.1-noarch
+Distributor ID:	CentOS
+Description:	CentOS Linux release 7.5.1804 (Core)
+Release:	7.5.1804
+Codename:	Core
+</code></pre>
+<h3 id="集群架构">集群架构</h3>
+<p>作为一个测试集群, 为方便, 我们单独用一个 node 作为部署节点(<code>ceph0</code>), 用来部署集群, 三个节点(<code>ceph1</code>, <code>ceph2</code>, <code>ceph3</code>) 作为监督节点(<code>monitors</code>), 同时这三个 <code>mon</code> 节点也做为<code>osd</code> 节点.</p>
+<h3 id="系统准备">系统准备</h3>
+<h4 id="建立统一用户">建立统一用户</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">[localhost ~]$ useradd -m -d /home/ceph -r -U -u 1000 ceph
+[localhost ~]$ usermod -aG wheel ceph
+[localhost ~]$ sed -i "s|^# %wheel|%wheel|g" /etc/sudoers
+</code></pre>
+<p>在下面的安装中都使用 <code>ceph</code> 用户.</p>
+<h4 id="安装 -ceph-deploy">安装 ceph-deploy</h4>
+<p>在部署节点安装 ceph-deploy:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ sudo pip2 install -U ceph-deploy remoto
+</code></pre>
+<h4 id="集群节点 -hosts- 设置">集群节点 hosts 设置</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### adding following lines to the end of /etc/hosts
+#### change IPs according to your servers
+10.0.1.10 ceph0 admin
+10.0.1.11 ceph1
+10.0.1.12 ceph2
+10.0.1.13 ceph3
+</code></pre>
+<h4 id="更改主机名 - 可选">更改主机名(可选)</h4>
+<p>将主机名更改为 <code>/etc/hosts</code> 中对应的名字:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">echo ceph0 > /etc/hostname
+</code></pre>
+<h4 id="ssh- 免密登录">ssh 免密登录</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ssh-keygen -t rsa -b 2048
+[ceph@ceph0 ~]$ cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+[ceph@ceph0 ~]$ for i in ceph1 ceph2 ceph3;do ssh-copy-id -i ~/.ssh/id_rsa.pub $i; done
+[ceph@ceph0 ~]$ for i in ceph1 ceph2 ceph3;do scp ~/.ssh/id_rsa $i:~/.ssh/; done
+</code></pre>
+<h4 id="安装配置 -ntp-service">安装配置 ntp service</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### on ceph0
+[ceph@ceph0 ~]$ for host in {0..3};do
+> ssh ceph${host} "sudo yum install -y ntp ntpdate"
+> ssh ceph${host} "sudo systemctl enable --now ntpd"
+> done
+</code></pre>
+<h4 id="关闭 - 设置防火墙">关闭 / 设置防火墙</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### disable firewalld
+[ceph@ceph0 ~]$ for host in {0..3}; do
+> ssh ceph${host} "sudo systemctl disable firewalld"
+> ssh ceph${host} "sudo systemctl stop firewalld"
+> done
+</code></pre>
+<h4 id="安装 ceph">安装 ceph</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-deploy install ceph0 ceph1 ceph2 ceph3
+</code></pre>
+<p><code>ceph-deploy</code> 会使用 <code>ceph@ceph0</code> 来连接 <code>ceph0</code>, 所以需要做 ssh 免密登录.</p>
+<h2 id="部署 -Ceph">部署 Ceph</h2>
+<p>ceph 集群有一个默认的集群名 - <code>ceph</code>, 如果你想运行多个 ceph 集群, 可以在部署时通过<code>--cluster name</code> 指定一个名字. 如果在同一硬件上运行多个实例, 还需要更改默认的端口设置, 以避免冲突.</p>
+<h3 id="部署 -monitors">部署 monitors</h3>
+<h4 id="创建 - 三个 -monitors">创建 三个 monitors:</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### hsotname ceph1/2/3 must match the actual `hostname -s` in the remote host
+[ceph@ceph0 ~]$ ceph-deploy new ceph1 ceph2 ceph3
+[ceph@ceph0 ~]$ ceph-deploy mon create ceph1 ceph2 ceph3
+#### a ceph.conf and ceph.mon.keyring will be created under current directory
+</code></pre>
+<h4 id="汇集分发 keys">汇集分发 keys</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">#### monitors keys
+#### wait for a while after "ceph-deploy mon create"
+[ceph@ceph0 ~]$ ceph-deploy gatherkeys ceph1 ceph2 ceph3
+#### distribute keys to admin nodes in cluster
+[ceph@ceph0 ~]$ ceph-deploy admin ceph0 ceph1 ceph2 ceph3
+#### change permissions
+for i in {0..3}; do
+  ssh ceph$i "sudo chown -R ceph:ceph /etc/ceph";
+  ssh ceph$i "sudo chown -R ceph:ceph /var/lib/ceph";
+  ssh ceph$i "sudo chown -R ceph:ceph /var/log/ceph";
+done
+#### function for sync ceph.conf if possible
+function sync-ceph{host=$(hostname)
+	cp /etc/ceph/ceph.conf
+	for i in $*; do
+		scp ~/ceph.conf $i:/etc/ceph/ceph.conf
+	done
+}
+
+</code></pre>
+<h4 id="检查集群状态">检查集群状态</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph -s
+  cluster:
+    id:     3cdc0d3a-6f09-4f06-977e-017e273bbb07
+    health: HEALTH_OK
+
+  services:
+    mon: 3 daemons, quorum ceph1,ceph2,ceph3
+    mgr: no daemons active
+    osd: 0 osds: 0 up, 0 in
+
+  data:
+    pools:   0 pools, 0 pgs
+    objects: 0  objects, 0
+    usage:   0 B used, 0 B / 0 B avail
+    pgs:
+</code></pre>
+<h3 id="部署 -managers">部署 managers</h3>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-deploy mgr create ceph1 ceph2 ceph3
+[ceph@ceph0 ~]$ ceph -s
+  cluster:
+    id:     3cdc0d3a-6f09-4f06-977e-017e273bbb07
+    health: HEALTH_OK
+
+  services:
+    mon: 3 daemons, quorum ceph1,ceph2, ceph3
+    mgr: ceph1(active), standbys: ceph2, ceph3
+    osd: 0 osds: 0 up, 0 in
+
+  data:
+    pools:   0 pools, 0 pgs
+    objects: 0  objects, 0
+    usage:   0 B used, 0 B / 0 B avail
+    pgs:
+
+</code></pre>
+<h2 id="部署 -MDS-Optional">部署 MDS (Optional)</h2>
+<p>使用 ceph-deploy 创建 <code>mds</code> 非常简单:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">### Usage:
+[ceph@ceph0 ~]$ ceph-deploy mds create {host-name}[:{daemon-name}] [{host-name}[:{daemon-name}] ...]
+### e.g.
+[ceph@ceph0 ~]$ ceph-deploy mds create ceph0 ceph1 ceph2 ceph3
+</code></pre>
+<p>daemon-name 是可选的, 如果要在一个节点上运行多个 mds 实例, 可能需要为每个 mds 实例设定 daemon-name.</p>
+<h2 id="部署 -Ceph-OSD">部署 Ceph OSD</h2>
+<pre class=" language-language-bash"><code class="language-language-bash">#### ceph-deploy osd create usage
+[ceph@ceph0 ~]$ ceph-deploy osd create -h
+usage: ceph-deploy osd create [-h] [--data DATA] [--journal JOURNAL]
+                              [--zap-disk] [--fs-type FS_TYPE] [--dmcrypt]
+                              [--dmcrypt-key-dir KEYDIR] [--filestore]
+                              [--bluestore] [--block-db BLOCK_DB]
+                              [--block-wal BLOCK_WAL] [--debug]
+                              [HOST]
+
+positional arguments:
+  HOST                  Remote host to connect
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --data DATA           The OSD data logical volume (vg/lv) or absolute path
+                        to device
+  --journal JOURNAL     Logical Volume (vg/lv) or path to GPT partition
+  --zap-disk            DEPRECATED - cannot zap when creating an OSD
+  --fs-type FS_TYPE     filesystem to use to format DEVICE (xfs, btrfs)
+  --dmcrypt             use dm-crypt on DEVICE
+  --dmcrypt-key-dir KEYDIR
+                        directory where dm-crypt keys are stored
+  --filestore           filestore objectstore
+  --bluestore           bluestore objectstore
+  --block-db BLOCK_DB   bluestore block.db path
+  --block-wal BLOCK_WAL
+                        bluestore block.wal path
+  --debug               Enable debug mode on remote ceph-volume calls
+
+</code></pre>
+<p>在 <code>Luminous 12.2.2</code> 之后, Ceph 中创建一个 OSD 就开始使用 <code>ceph-volume</code> 了.</p>
+<p>创建一个 bluestore 的 OSD, 有如下几种选择:</p>
+<ul>
+<li>A single block device</li>
+<li>A block device and a block.db device</li>
+<li>A block device and a block.val device</li>
+<li>A block device ,a block.val and a block.db device</li>
+</ul>
+<p>block device 也有几种选择:</p>
+<ul>
+<li>整块磁盘</li>
+<li>磁盘分区</li>
+<li>逻辑巻(A logical Volume of LVM)<br>
+在使用整块磁盘和磁盘分区时, ceph-volume 默认会自动创建一个 logical volume 使用.</li>
+</ul>
+<h3 id="简单块设备">简单块设备</h3>
+<h4 id="整块磁盘建立 OSD">整块磁盘建立 OSD</h4>
+<p>使用一整块磁盘建立一个 OSD, 可用如下命令:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph-deploy osd create [host] --data [/path/to/device] [--zap-disk]
+</code></pre>
+<p><code>--zap-disk</code> 是为了销毁已有的文件系统. 比如使用 <code>ceph1</code> 上的 <code>/dev/sdb</code> 来创建一个 <code>ext4</code> 系统的 OSD</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdb --fs-type ext4 --zap-disk
+</code></pre>
+<p>查看 OSD 信息:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ssh ceph1 "df -h"
+...
+[ceph@ceph0 ~]$ ssh ceph1 "ls /var/lib/ceph/osd/ceph-1"
+...
+[ceph@ceph0 ~]$ ssh ceph1 "lsblk /dev/sdb"
+...
+</code></pre>
+<h4 id="磁盘分区">磁盘分区</h4>
+<p>使用一个分区来创建一个 OSD 与使用整个磁盘类似:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph-deploy osd create [host] --data [/path/to/device_part] [--zap-disk]
+</code></pre>
+<p>注意, 磁盘格式须为<code>GPT</code> 分区格式(???).<br>
+例如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdc1
+</code></pre>
+<h4 id="逻辑巻">逻辑巻</h4>
+<p>命令格式为:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph-deploy osd create [host] --data [vg/lv]
+</code></pre>
+<p>我们可以使用 loop 文件来创建 逻辑巻, 再创建 OSD.</p>
+<pre><code>[ceph@ceph0 ~]$ ssh ceph@ceph1
+[ceph$ceph1 ~]$ dd if=/dev/zero of=ceph.0.img bs=1M count 2048
+[ceph@ceph1 ~]$ sudo losetup /dev/loop0 /home/ceph/ceph.0.img
+[ceph@ceph1 ~]$ sudo pvcreate /dev/loop
+[ceph@ceph1 ~]$ sudo vgcreate sdavg /dev/loop0
+[ceph@ceph1 ~]$ sudo lvcreate sdalv -l 100%FREE sdavg
+[ceph@ceph1 ~]$ exit
+[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 -data sdavg/sdalv
+</code></pre>
+<p>若是指定<code>--data /dev/sdavg/sdalv</code>, ceph-volume 会认为是块设备而报错. 这一种只是自己手动创建了 PV, VG, LV, 其他与前面两种方式一样.</p>
+<h3 id="带有 -block-db- 或 - 和 -block-wal 的块设备">带有 block.db 或 / 和 block.wal 的块设备</h3>
+<p>当指定 <code>block.db</code> 或 / 和 <code>block.wal</code> 时, 对应的设备只能为 <code> 磁盘分区 </code> 或<code>逻辑巻</code>. <code>--data</code> 的情况与简单块设备情况类似, 我们选择整个磁盘为例.</p>
+<h4 id="block-db- 和 -block-wal- 大小">block.db 和 block.wal 大小</h4>
+<p>默认情况下, <code>block.db</code> 和 <code>block.wal</code> 都比较小, <code>block.db=0</code>, <code>block.wal=100663296</code>.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-config --show-config|grep bluestore_block
+bluestore_block_create = true
+bluestore_block_db_create = false
+bluestore_block_db_path
+bluestore_block_db_size =
+bluestore_block_path
+bluestore_block_preallocate_file = false
+bluestore_block_size = 10737418240
+bluestore_block_wal_create = false
+bluestore_block_wal_path
+bluestore_block_wal_size = 100663296
+</code></pre>
+<p>所以, 用来存储 <code>block.db</code> 和 <code>block.wal</code> 的分区或 逻辑巻容量不用太大. 这里我们选择 <code>10G</code>.</p>
+<h4 id="磁盘分区 -v2">磁盘分区</h4>
+<p>基本命令格式为</p>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph-deploy osd create [host] --data [/path/to/device] --block-db [/path/to/device-partition] --block-wal [/path/to/device-partition]
+</code></pre>
+<p>例如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdd --block-db /dev/sde1 --block-wal /dev/sde2
+</code></pre>
+<p>与前面相比, 只是多指定了 <code>block-db</code> 和 <code>block-wal</code>的位置.</p>
+<h4 id="逻辑巻 -v2">逻辑巻</h4>
+<pre class=" language-language-bash"><code class="language-language-bash">ceph-deploy osd create [host] --data [/path/to/device] --block-db [vg/lv]  --block-wal [vg/lv]
+</code></pre>
+<p>例如</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[ceph@ceph0 ~]$ ssh ceph1
+[ceph@ceph1 ~]$ pvcreate /dev/sdh
+[ceph@ceph1 ~]$ vgcreate sdhvg /dev/sdh
+[ceph@ceph1 ~]$ lvcreate -n db-lv-0 -L 4G sdhvg
+[ceph@ceph1 ~]$ lvcreate -n wal-lv-0 -L 8G sdhvg
+[ceph@ceph1 ~]$ exit
+[ceph@ceph0 ~]$ ceph-deploy osd create ceph1 --data /dev/sdg --block-db sdhvg/db-lv-0 --block-wal sdhvg/wal-lv-0
+</code></pre>
+<p>与前面一样, 也是多指定了<code>--block-db</code> 和 <code>--block-wal</code> 的位置. 需要注意的是, <code>--block-db</code> 和 <code>--block-wal</code> 的格式为 <code>vg/lv</code>, 而不能是 <code>/dev/vg/lv</code>, 否则会报错.</p>
+<h3 id="移除 -OSD">移除 OSD</h3>
+<p>如果某些 OSD 在建立的时候有问题, 要移除这些 OSD, 可按照如下命令进行.</p>
+<pre class=" language-language-bash"><code class="language-language-bash">for id in {osds_to_be_removed}; do
+  ## mark osd out
+  ceph osd out $i
+  ## remove osd from crush map
+  ceph osd crush remove osd.${i}
+  ## delete osd authencation key
+  ceph auth del osd.${i}
+  ## remove osd finally
+  ceph osd rm ${i}
+done
+</code></pre>
+<h2 id="自动部署">自动部署</h2>
+<p>基于 <code>ceph-deploy</code>, 我们可以开发一个自动部署 Ceph 的脚本。 设定好 Ceph 集群的配置，比如下面这样</p>
+<pre class=" language-language-json"><code class="language-language-json">{
+        "cluster": "ceph",
+        "install": ["ceph0", "ceph1", "ceph2", "ceph3"],
+        "mon": ["ceph1", "ceph2", "ceph3"],
+        "mgr": ["ceph1", "ceph2", "ceph3"],
+        "admin": ["ceph1", "ceph2", "ceph3"],
+        "osd":[
+                {
+                        "host": "ceph1",
+                        "data": ["sdavg/sdalv", "sdbvg/sdblv", "sdcvg/sdclv"]
+                },
+                {
+                        "host": "ceph2",
+                        "data": ["sdavg/sdalv", "sdbvg/sdblv", "sdcvg/sdclv"]
+                },
+                {
+                        "host": "ceph3",
+                        "data": ["sdavg/sdalv", "sdbvg/sdblv", "sdcvg/sdclv"]
+                }
+        ],
+        "pool":[
+                {
+                        "name": "rbd",
+                        "pg_num": 256,
+                        "pgp_num": 256
+                },
+                {
+                        "name": "images",
+                        "pg_num": 256,
+                        "pgp_num": 256
+                }
+
+}
+</code></pre>
+<p>就可以用 Python 写一个简单脚本来自动部署 Ceph。</p>
+<script>
+        document.querySelectorAll('.github-emoji')
+          .forEach(el => {
+            if (!el.dataset.src) { return; }
+            const img = document.createElement('img');
+            img.style = 'display:none !important;';
+            img.src = el.dataset.src;
+            img.addEventListener('error', () => {
+              img.remove();
+              el.style.color = 'inherit';
+              el.style.backgroundImage = 'none';
+              el.style.background = 'none';
+            });
+            img.addEventListener('load', () => {
+              img.remove();
+            });
+            document.body.appendChild(img);
+          });
+      </script>
+            
+
+
+            <div class="post_reward" style="margin-top:15px;margin-bottom:0px;">
+	<label class="reward_btn">Buy Me A Coffee?</label>
+	<div class="qr_code">
+		<div class="qr_code_img">
+			<img class="image" src="/images/wechat.png" style="width:80%;" title="WeChat">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/alipay.png" style="width:80%;" title="AliPay">
+		</div>
+		<div class="qr_code_img">
+			<img class="image" src="/images/paypal.png" style="width:80%;" title="PayPal">
+		</div>
+	</div>
+	<hr noshade style="color:rgba(252, 244, 244, 0.952); margin-top:10px;" />
+</div>
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+            <div class="post-footer-tags">
+                <span class="text-color-light text-small">标签</span><br/>
+                
+    <a class="tag tag--primary tag--small t-link" href="/tags/Ceph/">Ceph</a> <a class="tag tag--primary tag--small t-link" href="/tags/Linux/">Linux</a>
+
+            </div>
+        
+        
+            <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Setup-IP-Filters-and-Remove-Ads-in-uTorrent/"
+                    data-tooltip="在 uTorrent 中设置 IP 过滤和去除广告"
+                    aria-label="上一篇: 在 uTorrent 中设置 IP 过滤和去除广告"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Install-CentOS-7-on-Windows-Subsystem-for-Linux/"
+                    data-tooltip="在 Windows Linux 子系统中安装 CentOS"
+                    aria-label="下一篇: 在 Windows Linux 子系统中安装 CentOS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+        
+        
+            
+                <div id="disqus_thread">
+    <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+            
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Yujiang Bi. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+                <div id="bottom-bar" class="post-bottom-bar" data-behavior="2">
+                    <div class="post-actions-wrap">
+    <nav>
+        <ul class="post-actions post-action-nav">
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Setup-IP-Filters-and-Remove-Ads-in-uTorrent/"
+                    data-tooltip="在 uTorrent 中设置 IP 过滤和去除广告"
+                    aria-label="上一篇: 在 uTorrent 中设置 IP 过滤和去除广告"
+                >
+                    
+                        <i class="fa fa-angle-left" aria-hidden="true"></i>
+                        <span class="hide-xs hide-sm text-small icon-ml">上一篇</span>
+                    </a>
+            </li>
+            <li class="post-action">
+                
+                    
+                <a
+                    class="post-action-btn btn btn--default tooltip--top"
+                    href="/2018/Install-CentOS-7-on-Windows-Subsystem-for-Linux/"
+                    data-tooltip="在 Windows Linux 子系统中安装 CentOS"
+                    aria-label="下一篇: 在 Windows Linux 子系统中安装 CentOS"
+                >
+                    
+                        <span class="hide-xs hide-sm text-small icon-mr">下一篇</span>
+                        <i class="fa fa-angle-right" aria-hidden="true"></i>
+                    </a>
+            </li>
+        </ul>
+    </nav>
+    <ul class="post-actions post-action-share">
+        <li class="post-action hide-lg hide-md hide-sm">
+            <a
+                class="post-action-btn btn btn--default btn-open-shareoptions"
+                href="#btn-open-shareoptions"
+                aria-label="Diesen Beitrag teilen"
+            >
+                <i class="fa fa-share-alt" aria-hidden="true"></i>
+            </a>
+        </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Facebook"
+                    aria-label="分享到 Facebook"
+                >
+                    <i class="fab fa-facebook" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Twitter"
+                    aria-label="分享到 Twitter"
+                >
+                    <i class="fab fa-twitter" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="global.share_on_linkedin"
+                    aria-label="global.share_on_linkedin"
+                >
+                    <i class="fab fa-linkedin" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+            
+            
+            <li class="post-action hide-xs">
+                <a
+                    class="post-action-btn btn btn--default"
+                    target="new" href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                    title="分享到 Weibo"
+                    aria-label="分享到 Weibo"
+                >
+                    <i class="fab fa-weibo" aria-hidden="true"></i>
+                </a>
+            </li>
+        
+        
+            
+                <li class="post-action">
+                    <a
+                        class="post-action-btn btn btn--default"
+                        href="#disqus_thread"
+                        aria-label="Kommentieren"
+                    >
+                        <i class="fa fa-comment"></i>
+                    </a>
+                </li>
+            
+        
+        <li class="post-action">
+            
+                <a class="post-action-btn btn btn--default" href="#table-of-contents" aria-label="目录">
+            
+                <i class="fa fa-list" aria-hidden="true"></i>
+            </a>
+        </li>
+    </ul>
+</div>
+
+
+                </div>
+                
+    <div id="share-options-bar" class="share-options-bar" data-behavior="2">
+        <i id="btn-close-shareoptions" class="fa fa-times"></i>
+        <ul class="share-options">
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.facebook.com/sharer/sharer.php?u=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                        aria-label="分享到 Facebook"
+                    >
+                        <i class="fab fa-facebook" aria-hidden="true"></i><span>分享到 Facebook</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://twitter.com/intent/tweet?text=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                        aria-label="分享到 Twitter"
+                    >
+                        <i class="fab fa-twitter" aria-hidden="true"></i><span>分享到 Twitter</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                        aria-label="global.share_on_linkedin"
+                    >
+                        <i class="fab fa-linkedin" aria-hidden="true"></i><span>global.share_on_linkedin</span>
+                    </a>
+                </li>
+            
+                
+                
+                <li class="share-option">
+                    <a
+                        class="share-option-btn"
+                        target="new"
+                        href="https://service.weibo.com/share/share.php?&amp;title=https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/"
+                        aria-label="分享到 Weibo"
+                    >
+                        <i class="fab fa-weibo" aria-hidden="true"></i><span>分享到 Weibo</span>
+                    </a>
+                </li>
+            
+        </ul>
+    </div>
+
+
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/images/bio.jpg" alt="作者的图片"/>
+        
+            <h4 id="about-card-name">Yujiang Bi</h4>
+        
+            <div id="about-card-bio"><p>What dosn’t kill makes you stranger</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>Research Assistant</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Beijing, China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+<script src="/assets/js/script-ujpvsmhzrh5mqwagjks2e24jraq0wtxyz3ic6elzhd7ladpzxaohyd0cqohy.min.js"></script>
+<!--SCRIPTS END-->
+
+
+    
+        <script>
+          var disqus_config = function() {
+            this.page.url = 'https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/';
+              
+            this.page.identifier = '2018/Install-and-Configure-Ceph-on-CentOS-7/';
+              
+          };
+          (function() {
+            var d = document, s = d.createElement('script');
+            var disqus_shortname = 'amito';
+            s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+          })();
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
+    
+
+
+
+
+    </body>
+</html>
