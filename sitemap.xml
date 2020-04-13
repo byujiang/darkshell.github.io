@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://amito.me/2019/Using-NVIDIA-vGPU-in-Linux-KVM/</loc>
+    
+    <lastmod>2020-04-13T07:18:28.616Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/books/index.html</loc>
     
     <lastmod>2020-04-13T05:58:47.794Z</lastmod>
@@ -16,13 +23,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/links/index.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.766Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/movies/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.766Z</lastmod>
@@ -30,9 +30,9 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-archives/index.html</loc>
+    <loc>https://amito.me/links/index.html</loc>
     
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    <lastmod>2020-04-13T03:20:25.766Z</lastmod>
     
   </url>
   
@@ -44,14 +44,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me//do.html</loc>
+    <loc>https://amito.me//gpg.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me//gpg.html</loc>
+    <loc>https://amito.me//do.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -73,6 +73,13 @@
   
   <url>
     <loc>https://amito.me/all-categories/index.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -135,21 +142,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Using-Git-to-Deploy-and-Manage-Your-Site/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.742Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2019/Using-NVIDIA-vGPU-in-Linux-KVM/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.742Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/2018/Using-JSON-in-Python/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.742Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2016/Using-Git-to-Deploy-and-Manage-Your-Site/</loc>
     
     <lastmod>2020-04-13T03:20:25.742Z</lastmod>
     
@@ -380,7 +380,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
+    <loc>https://amito.me/2018/Machine-Learning-Notes/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
     
@@ -394,7 +394,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Machine-Learning-Notes/</loc>
+    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
     
@@ -422,14 +422,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Introduction-to-Redis/</loc>
+    <loc>https://amito.me/2016/Love-You-Like-My-Life/</loc>
     
     <lastmod>2020-04-13T03:20:25.724Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Love-You-Like-My-Life/</loc>
+    <loc>https://amito.me/2018/Introduction-to-Redis/</loc>
     
     <lastmod>2020-04-13T03:20:25.724Z</lastmod>
     
@@ -451,13 +451,6 @@
   
   <url>
     <loc>https://amito.me/2018/Install-CentOS-7-on-Windows-Subsystem-for-Linux/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.721Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2018/Install-Chroma-on-Tianhe-II-and-Cori/</loc>
     
     <lastmod>2020-04-13T03:20:25.721Z</lastmod>
     
@@ -492,21 +485,14 @@
   </url>
   
   <url>
+    <loc>https://amito.me/2018/Install-Chroma-on-Tianhe-II-and-Cori/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.721Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2016/Frequently-Used-Apps-Under-MacOS/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2016/Forbidding-Connections-from-Specific-IPs-in-SS/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2016/Flashing-Pandora-Based-on-OpenWRT-into-Mi-WiFi-Light/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
@@ -520,7 +506,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Find-What-Ports-Are-Listening-in-Linux/</loc>
+    <loc>https://amito.me/2016/Flashing-Pandora-Based-on-OpenWRT-into-Mi-WiFi-Light/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2015/Fix-VMware-12-not-Working-Under-Fedora-23-Problem/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
@@ -528,6 +521,20 @@
   
   <url>
     <loc>https://amito.me/2016/Fix-Incomplete-Download-of-Torrents-on-Btrfs/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2019/Find-What-Ports-Are-Listening-in-Linux/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2016/Forbidding-Connections-from-Specific-IPs-in-SS/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
@@ -549,13 +556,6 @@
   
   <url>
     <loc>https://amito.me/2018/GDM-Crashes-After-Screen-Blanks-under-Fedora-27/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.720Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2015/Fix-VMware-12-not-Working-Under-Fedora-23-Problem/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
