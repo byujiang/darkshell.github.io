@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://amito.me/2018/Ceph-RBD-Incremental-Backup-and-Restore/</loc>
+    
+    <lastmod>2020-04-14T02:47:20.042Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2018/CephFS-Introduction-Installation-and-Configuration/</loc>
     
     <lastmod>2020-04-14T02:23:10.369Z</lastmod>
@@ -44,13 +51,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me//about/index.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me//gpg.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
@@ -65,14 +65,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-categories/index.html</loc>
+    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/all-tags/index.html</loc>
+    <loc>https://amito.me/all-categories/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -93,7 +93,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-archives/index.html</loc>
+    <loc>https://amito.me//about/index.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/all-tags/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -366,13 +373,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Mount-CephFS-over-NFS/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.728Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/2015/Multiplot-in-Gnuplot/</loc>
     
     <lastmod>2020-04-13T03:20:25.728Z</lastmod>
@@ -380,21 +380,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Machine-Learning-Notes/</loc>
+    <loc>https://amito.me/2019/Mount-CephFS-over-NFS/</loc>
     
-    <lastmod>2020-04-13T03:20:25.725Z</lastmod>
+    <lastmod>2020-04-13T03:20:25.728Z</lastmod>
     
   </url>
   
   <url>
     <loc>https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.725Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
     
@@ -408,21 +401,21 @@
   </url>
   
   <url>
+    <loc>https://amito.me/2018/Machine-Learning-Notes/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.725Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.725Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2015/Installing-and-Using-Arch-Linux/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.724Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2020/Install-and-Setup-Docker-under-CentOS-8/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.724Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2016/Install-and-Configure-SS-under-Centos-7/</loc>
     
     <lastmod>2020-04-13T03:20:25.724Z</lastmod>
     
@@ -436,7 +429,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Introduction-to-Redis/</loc>
+    <loc>https://amito.me/2016/Install-and-Configure-SS-under-Centos-7/</loc>
     
     <lastmod>2020-04-13T03:20:25.724Z</lastmod>
     
@@ -444,6 +437,20 @@
   
   <url>
     <loc>https://amito.me/2018/LVM-Resize-Partitions/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.724Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2018/Introduction-to-Redis/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.724Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2020/Install-and-Setup-Docker-under-CentOS-8/</loc>
     
     <lastmod>2020-04-13T03:20:25.724Z</lastmod>
     
@@ -611,21 +618,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Dashboard-in-Ceph/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.717Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2015/Configure-Apache-Under-OSX-10-9-10-10/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.717Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/</loc>
+    <loc>https://amito.me/2015/Customizing-Your-Vim-to-Raise-Working-Efficiency/</loc>
     
     <lastmod>2020-04-13T03:20:25.717Z</lastmod>
     
@@ -653,23 +646,23 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2015/Customizing-Your-Vim-to-Raise-Working-Efficiency/</loc>
+    <loc>https://amito.me/2019/Dashboard-in-Ceph/</loc>
     
     <lastmod>2020-04-13T03:20:25.717Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Ceph-RBD-Incremental-Backup-and-Restore/</loc>
+    <loc>https://amito.me/2018/Compiling-and-Testing-the-WRF-Model/</loc>
     
-    <lastmod>2020-04-13T03:20:25.716Z</lastmod>
+    <lastmod>2020-04-13T03:20:25.717Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Check-XFS-and-EXT-Filesystem-Consistence/</loc>
+    <loc>https://amito.me/2015/Configure-Apache-Under-OSX-10-9-10-10/</loc>
     
-    <lastmod>2020-04-13T03:20:25.716Z</lastmod>
+    <lastmod>2020-04-13T03:20:25.717Z</lastmod>
     
   </url>
   
@@ -702,14 +695,21 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/</loc>
+    <loc>https://amito.me/2018/Check-XFS-and-EXT-Filesystem-Consistence/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.716Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/</loc>
     
     <lastmod>2020-04-13T03:20:25.714Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/</loc>
+    <loc>https://amito.me/2018/Ceph-Cluster-Performance-Benchmark/</loc>
     
     <lastmod>2020-04-13T03:20:25.714Z</lastmod>
     
