@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://amito.me/2019/Mount-CephFS-over-NFS/</loc>
+    
+    <lastmod>2020-04-16T15:54:36.052Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2018/Ceph-RBD-Incremental-Backup-and-Restore/</loc>
     
     <lastmod>2020-04-14T04:07:08.840Z</lastmod>
@@ -51,14 +58,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me//gpg.html</loc>
+    <loc>https://amito.me//do.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me//do.html</loc>
+    <loc>https://amito.me/all-categories/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -72,7 +79,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-categories/index.html</loc>
+    <loc>https://amito.me//about/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -93,7 +100,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me//about/index.html</loc>
+    <loc>https://amito.me//gpg.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -107,14 +114,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2020/adding-google-adsense-to-your-site/</loc>
+    <loc>https://amito.me/2019/XCache-Config-Testing-And-Optimizing/</loc>
     
     <lastmod>2020-04-13T03:20:25.758Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2019/XCache-Config-Testing-And-Optimizing/</loc>
+    <loc>https://amito.me/2020/adding-google-adsense-to-your-site/</loc>
     
     <lastmod>2020-04-13T03:20:25.758Z</lastmod>
     
@@ -135,14 +142,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Using-Papers-to-Manage-Your-Docs-on-OSX/</loc>
+    <loc>https://amito.me/2018/Using-RBD-in-Ceph/</loc>
     
     <lastmod>2020-04-13T03:20:25.754Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-RBD-in-Ceph/</loc>
+    <loc>https://amito.me/2016/Using-Papers-to-Manage-Your-Docs-on-OSX/</loc>
     
     <lastmod>2020-04-13T03:20:25.754Z</lastmod>
     
@@ -156,14 +163,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/</loc>
+    <loc>https://amito.me/2018/Using-JSON-in-Python/</loc>
     
     <lastmod>2020-04-13T03:20:25.742Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-JSON-in-Python/</loc>
+    <loc>https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/</loc>
     
     <lastmod>2020-04-13T03:20:25.742Z</lastmod>
     
@@ -198,14 +205,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
+    <loc>https://amito.me/2019/Using-Ansible-to-Deploy-Ceph/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
+    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
@@ -219,7 +226,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Using-Ansible-to-Deploy-Ceph/</loc>
+    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
@@ -243,13 +250,6 @@
     <loc>https://amito.me/2016/Tmux-Swiss-Army-Knife-for-Telework/</loc>
     
     <lastmod>2020-04-13T03:20:25.738Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2018/Setup-NFS-Service-on-CentOS-7/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.737Z</lastmod>
     
   </url>
   
@@ -282,6 +282,13 @@
   </url>
   
   <url>
+    <loc>https://amito.me/2018/Setup-NFS-Service-on-CentOS-7/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.737Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2018/Setup-IP-Filters-and-Remove-Ads-in-uTorrent/</loc>
     
     <lastmod>2020-04-13T03:20:25.735Z</lastmod>
@@ -289,14 +296,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/</loc>
+    <loc>https://amito.me/2018/STDIN-and-STDOUT-Redirect-in-Bash/</loc>
     
     <lastmod>2020-04-13T03:20:25.734Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/STDIN-and-STDOUT-Redirect-in-Bash/</loc>
+    <loc>https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/</loc>
     
     <lastmod>2020-04-13T03:20:25.734Z</lastmod>
     
@@ -338,13 +345,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Obtaining-Process-Name-via-PID-and-Vice-Verse/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.730Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/2018/New-Features-About-Cluster-in-Redis-5/</loc>
     
     <lastmod>2020-04-13T03:20:25.730Z</lastmod>
@@ -353,6 +353,13 @@
   
   <url>
     <loc>https://amito.me/2016/Open-Websites-As-Native-Apps-in-Chrome/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.730Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2016/Obtaining-Process-Name-via-PID-and-Vice-Verse/</loc>
     
     <lastmod>2020-04-13T03:20:25.730Z</lastmod>
     
@@ -380,13 +387,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Mount-CephFS-over-NFS/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.728Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/2019/Monitor-Ceph-Cluster-Status-and-Performance-with-Grafana/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
@@ -394,7 +394,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Make-Custom-Wubi-06-Word-Stock-For-Rime/</loc>
+    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
     
@@ -408,7 +408,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Making-an-Installation-USB-Drive-of-OSX/</loc>
+    <loc>https://amito.me/2018/Make-Custom-Wubi-06-Word-Stock-For-Rime/</loc>
     
     <lastmod>2020-04-13T03:20:25.725Z</lastmod>
     
