@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
+    
+    <lastmod>2020-04-30T17:22:42.870Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2018/Install-and-Configure-Ceph-on-CentOS-7/</loc>
     
     <lastmod>2020-04-30T14:21:05.391Z</lastmod>
@@ -65,21 +72,21 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-archives/index.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me//about/index.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me//gpg.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me//do.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -100,13 +107,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me//do.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/all-categories/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
@@ -115,6 +115,13 @@
   
   <url>
     <loc>https://amito.me/all-tags/index.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me//about/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -212,14 +219,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Using-Ansible-to-Deploy-Ceph/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.740Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
+    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
@@ -233,7 +233,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
+    <loc>https://amito.me/2019/Using-Ansible-to-Deploy-Ceph/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
