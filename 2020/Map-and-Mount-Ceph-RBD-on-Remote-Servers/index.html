@@ -6,7 +6,7 @@
     <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="generator" content="冬日の草原">
-    <title>Map and Mount Ceph RBD on Remote Servers - 冬日の草原</title>
+    <title>在远程服务器上挂载 Ceph RBD 块设备 - 冬日の草原</title>
     <meta name="author" content="Yujiang Bi">
     
         <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning,">
@@ -19,18 +19,18 @@
             <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
         
     
-    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。\n\n\n\nPrerequisites\nceph repo:\n[ceph]\nname=Ceph packages for $basearch\nbaseurl=https://download.ceph.com/rpm-mimic/el7/$basearch\nenabled=1\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-noarch]\nname=Ceph noarch packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/noarch\nenabled=1\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-source]\nname=Ceph source packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/SRPMS\nenabled=0\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\nInstall rbd clients:\n$ sudo yum install -y ceph-common python-rbd\n\nCreate RBD\n$ rbd create --pool volulmes --size 50G lintao_test\n\nMount\nConfig\n/etc/ceph/ceph.conf:\n[global]\nfsid = 1da65d0e-4284-41e0-868e-8c25b89648fc\nmon_initial_members = ceph01, ceph02, ceph03\nmon_host = 192.168.15.38,192.168.15.39,192.168.15.40\nauth_cluster_required = cephx\nauth_service_required = cephx\nauth_client_required = cephx\n\n\n[mon]\nmgr initial modules = dashboard\n\n[client.cinder]\nkeyring = /etc/ceph/ceph.client.cinder.keyring\n\n/etc/ceph/ceph.client.cinder.keyring:\n[client.cinder]\n\tkey = AQBooSldwwbkAhAAtxRH0lHGfnUautW2rF6pkQ==\n\nrbd map\n\nmap rbd\n\n$ sudo rbd map volumes/lintao_test --id cinder\n/dev/rbd0\n\n\nif unmap rbd\n\n$ sudo rbd unmap volumes/lintao_test --id cinder\n\nformat &amp; mount\n$ sudo fdisk /dev/rbd/volumes/lintao_test\n...\n$ sudo mkfs.ext4 /dev/rbd/volumes/lintao_test-part1\n...\n$ sudo mkdir /data \n$ sudo mount /dev/rbd/volumes/lintao_test-part1 /data\n\nautomount\n\n/etc/ceph/rbdmap\n\nvolumes/lintao_test id=cinder,keyring=/etc/ceph/ceph.client.keyring\n\n\nenable rbdmap service\n\n$ sudo systemctl enable --now rbdmap\n\n\n/etc/fstab\n\n$ sudo blkid /dev/rbd/volumes/lintao_test-part1\n### /etc/fstab\nUUID=0a9d74d8-8f37-4a80-ac70-28c292e79784    /data    ext4 defaults 0 0\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2020-04-03T15:09:59+08:00","dateModified":"2020-04-13T11:49:33+08:00","datePublished":"2020-04-03T15:09:59+08:00","description":"Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。","headline":"Map and Mount Ceph RBD on Remote Servers","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2020/Map-and-Mount-Ceph-RBD-on-Remote-Servers/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2020/Map-and-Mount-Ceph-RBD-on-Remote-Servers/","keywords":"Ceph, RBD","thumbnailUrl":"ceph.png"}</script>
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。\n\n\n\n 准备工作 \nCeph 安装 repo:\n[ceph]\nname=Ceph packages for $basearch\nbaseurl=https://download.ceph.com/rpm-mimic/el7/$basearch\nenabled=1\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-noarch]\nname=Ceph noarch packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/noarch\nenabled=1\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\n[ceph-source]\nname=Ceph source packages\nbaseurl=https://download.ceph.com/rpm-mimic/el7/SRPMS\nenabled=0\npriority=2\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\n\n 安装 Ceph 和 RBD 客户端:\n$ sudo yum install -y ceph-common python-rbd\n\n 远程服务器挂载 \n 创建 RBD\n$ rbd create --pool volulmes --size 50G lintao_test\n\nCeph 配置 \n/etc/ceph/ceph.conf:\n[global]\nfsid = 1da65d0e-4284-41e0-868e-8c25b89648fc\nmon_initial_members = ceph01, ceph02, ceph03\nmon_host = 192.168.15.38,192.168.15.39,192.168.15.40\nauth_cluster_required = cephx\nauth_service_required = cephx\nauth_client_required = cephx\n\n\n[mon]\nmgr initial modules = dashboard\n\n[client.cinder]\nkeyring = /etc/ceph/ceph.client.cinder.keyring\n\n 远程客户端使用 key: /etc/ceph/ceph.client.rbd.keyring:\n[client.rbd]\n\tkey = AQBooSldwwbkAhAAtxRH0lHGfnUautW2rF6pkQ==\n\nCeph RBD Map\n\nmap rbd\n\n$ sudo rbd map volumes/lintao_test --id cinder\n/dev/rbd0\n\n\nif unmap rbd\n\n$ sudo rbd unmap volumes/lintao_test --id cinder\n\n 格式化与挂载 \n$ sudo fdisk /dev/rbd/volumes/lintao_test\n...\n$ sudo mkfs.ext4 /dev/rbd/volumes/lintao_test-part1\n...\n$ sudo mkdir /data \n$ sudo mount /dev/rbd/volumes/lintao_test-part1 /data\n\n 自动挂载 \n\n/etc/ceph/rbdmap\n\nvolumes/lintao_test id=cinder,keyring=/etc/ceph/ceph.client.keyring\n\n\nenable rbdmap service\n\n$ sudo systemctl enable --now rbdmap\n\n\n/etc/fstab\n\n$ sudo blkid /dev/rbd/volumes/lintao_test-part1\n### /etc/fstab\nUUID=0a9d74d8-8f37-4a80-ac70-28c292e79784    /data    ext4 defaults 0 0\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2020-04-03T15:09:59+08:00","dateModified":"2020-05-07T15:17:57+08:00","datePublished":"2020-04-03T15:09:59+08:00","description":"Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。","headline":"在远程服务器上挂载 Ceph RBD 块设备","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2020/Map-and-Mount-Ceph-RBD-on-Remote-Servers/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2020/Map-and-Mount-Ceph-RBD-on-Remote-Servers/","keywords":"Ceph, RBD","thumbnailUrl":"ceph.png"}</script>
     <meta name="description" content="Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。">
 <meta name="keywords" content="Ceph,RBD">
 <meta property="og:type" content="blog">
-<meta property="og:title" content="Map and Mount Ceph RBD on Remote Servers">
+<meta property="og:title" content="在远程服务器上挂载 Ceph RBD 块设备">
 <meta property="og:url" content="https://amito.me/2020/Map-and-Mount-Ceph-RBD-on-Remote-Servers/index.html">
 <meta property="og:site_name" content="冬日の草原">
 <meta property="og:description" content="Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。">
 <meta property="og:locale" content="zh-cn">
-<meta property="og:updated_time" content="2020-04-13T03:49:33.098Z">
+<meta property="og:updated_time" content="2020-05-07T07:17:57.677Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Map and Mount Ceph RBD on Remote Servers">
+<meta name="twitter:title" content="在远程服务器上挂载 Ceph RBD 块设备">
 <meta name="twitter:description" content="Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。">
 <meta name="twitter:creator" content="@byujiang">
     
@@ -390,7 +390,7 @@
         <div class="post-header main-content-wrap text-left">
     
         <h1 class="post-title">
-            Map and Mount Ceph RBD on Remote Servers
+            在远程服务器上挂载 Ceph RBD 块设备
         </h1>
     
     
@@ -418,9 +418,9 @@
             <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>Ceph 存储一个重要的使用场景就是其块设备，本文将会介绍一下如何挂载 Ceph RBD 到远程服务器上。</p>
 <a id="more"></a>
 <hr width="100%" color="#C0C0C0" size="2">
-<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Prerequisites"><span class="toc-text">Prerequisites</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Create-RBD"><span class="toc-text">Create RBD</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Mount"><span class="toc-text">Mount</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Config"><span class="toc-text">Config</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rbd-map"><span class="toc-text">rbd map</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#format-mount"><span class="toc-text">format &amp; mount</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#automount"><span class="toc-text">automount</span></a></li></ol></li></ol>
-<h2 id="Prerequisites">Prerequisites</h2>
-<p>ceph repo:</p>
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#准备工作"><span class="toc-text"> 准备工作 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#远程服务器挂载"><span class="toc-text"> 远程服务器挂载 </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#创建 -RBD"><span class="toc-text"> 创建 RBD</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Ceph- 配置"><span class="toc-text">Ceph 配置 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Ceph-RBD-Map"><span class="toc-text">Ceph RBD Map</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#格式化与挂载"><span class="toc-text"> 格式化与挂载 </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#自动挂载"><span class="toc-text"> 自动挂载 </span></a></li></ol></li></ol>
+<h2 id="准备工作"> 准备工作 </h2>
+<p>Ceph 安装 repo:</p>
 <pre class=" language-language-bash"><code class="language-language-bash">[ceph]
 name=Ceph packages for $basearch
 baseurl=https://download.ceph.com/rpm-mimic/el7/$basearch
@@ -445,14 +445,14 @@ priority=2
 gpgcheck=1
 gpgkey=https://download.ceph.com/keys/release.asc
 </code></pre>
-<p>Install rbd clients:</p>
+<p> 安装 Ceph 和 RBD 客户端:</p>
 <pre class=" language-language-bash"><code class="language-language-bash">$ sudo yum install -y ceph-common python-rbd
 </code></pre>
-<h2 id="Create-RBD">Create RBD</h2>
+<h2 id="远程服务器挂载"> 远程服务器挂载 </h2>
+<h3 id="创建 -RBD"> 创建 RBD</h3>
 <pre class=" language-language-bash"><code class="language-language-bash">$ rbd create --pool volulmes --size 50G lintao_test
 </code></pre>
-<h2 id="Mount">Mount</h2>
-<h3 id="Config">Config</h3>
+<h3 id="Ceph- 配置">Ceph 配置 </h3>
 <p><code>/etc/ceph/ceph.conf</code>:</p>
 <pre class=" language-language-bash"><code class="language-language-bash">[global]
 fsid = 1da65d0e-4284-41e0-868e-8c25b89648fc
@@ -469,11 +469,11 @@ mgr initial modules = dashboard
 [client.cinder]
 keyring = /etc/ceph/ceph.client.cinder.keyring
 </code></pre>
-<p><code>/etc/ceph/ceph.client.cinder.keyring</code>:</p>
-<pre class=" language-language-bash"><code class="language-language-bash">[client.cinder]
+<p> 远程客户端使用 key: <code>/etc/ceph/ceph.client.rbd.keyring</code>:</p>
+<pre class=" language-language-bash"><code class="language-language-bash">[client.rbd]
 	key = AQBooSldwwbkAhAAtxRH0lHGfnUautW2rF6pkQ==
 </code></pre>
-<h3 id="rbd-map">rbd map</h3>
+<h3 id="Ceph-RBD-Map">Ceph RBD Map</h3>
 <ol>
 <li>map rbd</li>
 </ol>
@@ -485,7 +485,7 @@ keyring = /etc/ceph/ceph.client.cinder.keyring
 </ol>
 <pre class=" language-language-bash"><code class="language-language-bash">$ sudo rbd unmap volumes/lintao_test --id cinder
 </code></pre>
-<h3 id="format-mount">format &amp; mount</h3>
+<h3 id="格式化与挂载"> 格式化与挂载 </h3>
 <pre class=" language-language-bash"><code class="language-language-bash">$ sudo fdisk /dev/rbd/volumes/lintao_test
 ...
 $ sudo mkfs.ext4 /dev/rbd/volumes/lintao_test-part1
@@ -493,7 +493,7 @@ $ sudo mkfs.ext4 /dev/rbd/volumes/lintao_test-part1
 $ sudo mkdir /data 
 $ sudo mount /dev/rbd/volumes/lintao_test-part1 /data
 </code></pre>
-<h3 id="automount">automount</h3>
+<h3 id="自动挂载"> 自动挂载 </h3>
 <ol>
 <li><code>/etc/ceph/rbdmap</code></li>
 </ol>
