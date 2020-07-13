@@ -19,7 +19,7 @@
             <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
         
     
-    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。\n\n\n\n 停机维护 \n\n 关掉所有使用 Ceph 集群的客户端 \n 保证集群的健康状态 (healthy state) 为 OK\n 设置 OSD flags\n\n## osd no out\n$ ceph osd set noout\n## not backfill data to other osd\n$ ceph osd set nobackfill\n## not recover\n$ ceph osd set norecover\n## 上面一些 flags 对于关掉集群应该已经足够安全了，\n## 还可以设置如下的 flags 以完全停止集群\n$ ceph osd set norebalance\n$ ceph osd set nodown\n$ ceph osd set pause\n\n\n 依次关掉 Ceph 的服务节点 \n 依次关停 Ceph 的 OSD 节点 \n 依次关停 Ceph 的 Mon 节点 \n 依次关停 Ceph 的 MGR 节点 \n 进行维护工作 \n\n 开机启动 Ceph 集群 \n\n 启动 MGR 节点 \n 启动 MOM 节点 \n 启动 OSD 节点 \n 在所有节点启动上线后，确认所有服务都已正常 \n 取消之前设置的 flags\n\n$ ceph osd unset noout\n$ ceph osd unset nobackfill\n$ ceph osd unset norecover\n$ ceph osd unset norebalance\n$ ceph osd unset nodown\n$ ceph osd unset pause\n\n\n 检查 Ceph 健康状态，确定为 OK。\n 检查 Ceph 客户端是否能连接上 Ceph 集群 \n\n 参考 \n\nHow to do a Ceph cluster maintenance/shutdown\n[ceph-users] Steps to stop/restart entire ceph cluster\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-11-30T16:59:56+08:00","dateModified":"2020-04-13T11:20:25+08:00","datePublished":"2018-11-30T16:59:56+08:00","description":"Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。","headline":"Ceph 集群停机维护一般过程","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/","keywords":"Ceph, Linux","thumbnailUrl":"ceph.png"}</script>
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。\n\n\n\n 停机维护 \n\n 关掉所有使用 Ceph 集群的客户端 \n 保证集群的健康状态 (healthy state) 为 OK\n 设置 OSD flags\n\n## osd no out\n$ ceph osd set noout\n## not backfill data to other osd\n$ ceph osd set nobackfill\n## not recover\n$ ceph osd set norecover\n## 上面一些 flags 对于关掉集群应该已经足够安全了，\n## 还可以设置如下的 flags 以完全停止集群\n$ ceph osd set norebalance\n$ ceph osd set nodown\n$ ceph osd set pause\n\n\n 依次关掉 Ceph 的客户端节点 \n 查看 Ceph Service\n\n$ ceph -s\n  cluster:\n    id:     1272c14d-2389-48db-a313-02600a50212f\n    health: HEALTH_OK\n \n  services:\n    mon: 3 daemons, quorum ceph01,ceph02,ceph03\n    mgr: ceph03(active), standbys: ceph02, ceph01\n    mds: cephfs-1/1/1 up  {0=ceph03=up:active}, 2 up:standby\n    osd: 18 osds: 18 up, 18 in\n\n\n 依次关掉 Ceph MDS/FUSE 服务 \n\n### MDS && FUSE\nfor i in ceph0{1..3}; do\n\tssh $i \"systemctl stop ceph-fuse@-ceph.service; systemctl stop ceph-mds@${i}.service\"\ndone\n###\n\n\n 依次关停 Ceph 的 OSD 服务 \n\n### OSD\nfor i in $(ceph osd status | awk '/ceph/{print $2 \":\" $4}');do\n\tidx=$(echo $i|awk -F : '{print $1}')\n\thost=$(echo $i | awk -F : '{print $2}')\n\tssh $host \"systemctl stop ceph-osd@${idx}.service\"\ndone\n\n\n 依次关停 Ceph 的 Mon 服务 \n\nfor i in ceph0{1..3};do\n\tssh $i \"systemctl stop ceph-mon@${i}.service\"\ndone\n\n\n 依次关停 Ceph 的 MGR 服务 \n\nfor i in ceph0{1..3}; do\n\tssh $i \"systemctl stop ceph-mgr@${i}.service\"\ndone\n\n\n 进行关机等维护工作 \n\n 开机启动 Ceph 集群 \n\n 启动 MGR 节点 \n 启动 MOM 节点 \n 启动 OSD 节点 \n 在所有节点启动上线后，确认所有服务都已正常 \n 取消之前设置的 flags\n\n$ ceph osd unset noout\n$ ceph osd unset nobackfill\n$ ceph osd unset norecover\n$ ceph osd unset norebalance\n$ ceph osd unset nodown\n$ ceph osd unset pause\n\n\n 检查 Ceph 健康状态，确定为 OK。\n 检查 Ceph 客户端是否能连接上 Ceph 集群 \n\n 参考 \n\nHow to do a Ceph cluster maintenance/shutdown\n[ceph-users] Steps to stop/restart entire ceph cluster\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2018-11-30T16:59:56+08:00","dateModified":"2020-07-13T16:22:58+08:00","datePublished":"2018-11-30T16:59:56+08:00","description":"Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。","headline":"Ceph 集群停机维护一般过程","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2018/Ceph-Cluster-Maintenance-Procedures/","keywords":"Ceph, Linux","thumbnailUrl":"ceph.png"}</script>
     <meta name="description" content="Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。">
 <meta name="keywords" content="Ceph,Linux">
 <meta property="og:type" content="blog">
@@ -28,7 +28,7 @@
 <meta property="og:site_name" content="冬日の草原">
 <meta property="og:description" content="Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。">
 <meta property="og:locale" content="zh-cn">
-<meta property="og:updated_time" content="2020-04-13T03:20:25.714Z">
+<meta property="og:updated_time" content="2020-07-13T08:22:58.128Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Ceph 集群停机维护一般过程">
 <meta name="twitter:description" content="Ceph 集群运行久了，需要对其进行停机维护。 而停止 Ceph 服务需要按照一定的流程来进行，以避免 Ceph 集群出现性能问题。">
@@ -438,11 +438,55 @@ $ ceph osd set nodown
 $ ceph osd set pause
 </code></pre>
 <ol start="4">
-<li> 依次关掉 Ceph 的服务节点 </li>
-<li> 依次关停 Ceph 的 OSD 节点 </li>
-<li> 依次关停 Ceph 的 Mon 节点 </li>
-<li> 依次关停 Ceph 的 MGR 节点 </li>
-<li> 进行维护工作 </li>
+<li> 依次关掉 Ceph 的客户端节点 </li>
+<li> 查看 Ceph Service</li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">$ ceph -s
+  cluster:
+    id:     1272c14d-2389-48db-a313-02600a50212f
+    health: HEALTH_OK
+ 
+  services:
+    mon: 3 daemons, quorum ceph01,ceph02,ceph03
+    mgr: ceph03(active), standbys: ceph02, ceph01
+    mds: cephfs-1/1/1 up  {0=ceph03=up:active}, 2 up:standby
+    osd: 18 osds: 18 up, 18 in
+</code></pre>
+<ol start="6">
+<li> 依次关掉 Ceph MDS/FUSE 服务 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### MDS && FUSE
+for i in ceph0{1..3}; do
+	ssh $i "systemctl stop ceph-fuse@-ceph.service; systemctl stop ceph-mds@${i}.service"
+done
+###
+</code></pre>
+<ol start="6">
+<li> 依次关停 Ceph 的 OSD 服务 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">### OSD
+for i in $(ceph osd status | awk '/ceph/{print $2 ":" $4}');do
+	idx=$(echo $i|awk -F : '{print $1}')
+	host=$(echo $i | awk -F : '{print $2}')
+	ssh $host "systemctl stop ceph-osd@${idx}.service"
+done
+</code></pre>
+<ol start="6">
+<li> 依次关停 Ceph 的 Mon 服务 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">for i in ceph0{1..3};do
+	ssh $i "systemctl stop ceph-mon@${i}.service"
+done
+</code></pre>
+<ol start="7">
+<li> 依次关停 Ceph 的 MGR 服务 </li>
+</ol>
+<pre class=" language-language-bash"><code class="language-language-bash">for i in ceph0{1..3}; do
+	ssh $i "systemctl stop ceph-mgr@${i}.service"
+done
+</code></pre>
+<ol start="8">
+<li> 进行关机等维护工作 </li>
 </ol>
 <h2 id="开机启动 -Ceph- 集群"> 开机启动 Ceph 集群 </h2>
 <ol>
