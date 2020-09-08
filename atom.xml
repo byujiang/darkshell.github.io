@@ -6,7 +6,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="https://amito.me/"/>
-  <updated>2020-05-07T07:17:57.677Z</updated>
+  <updated>2020-09-08T08:06:02.390Z</updated>
   <id>https://amito.me/</id>
   
   <author>
@@ -15,6 +15,27 @@
   </author>
   
   <generator uri="http://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>Adding Existing Ceph Volumes to New OpenStack Instance</title>
+    <link href="https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/"/>
+    <id>https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/</id>
+    <published>2020-09-08T08:04:58.000Z</published>
+    <updated>2020-09-08T08:06:02.390Z</updated>
+    
+    <content type="html"><![CDATA[<link rel="stylesheet" class="aplayer-secondary-style-marker" href="/assets/css/APlayer.min.css"><script src="/assets/js/APlayer.min.js" class="aplayer-secondary-script-marker"></script><script class="meting-secondary-script-marker" src="/assets/js/Meting.min.js"></script><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><a id="more"></a><hr width="100%" color="#C0C0C0" size="2"><!-- toc --><script>        document.querySelectorAll('.github-emoji')          .forEach(el => {            if (!el.dataset.src) { return; }            const img = document.createElement('img');            img.style = 'display:none !important;';            img.src = el.dataset.src;            img.addEventListener('error', () => {              img.remove();              el.style.color = 'inherit';              el.style.backgroundImage = 'none';              el.style.background = 'none';            });            img.addEventListener('load', () => {              img.remove();            });            document.body.appendChild(img);          });      </script>]]></content>
+    
+    <summary type="html">
+    
+      
+      
+        &lt;link rel=&quot;stylesheet&quot; class=&quot;aplayer-secondary-style-marker&quot; href=&quot;/assets/css/APlayer.min.css&quot;&gt;&lt;script src=&quot;/assets/js/APlayer.min.js&quot; cla
+      
+    
+    </summary>
+    
+    
+  </entry>
   
   <entry>
     <title>在远程服务器上挂载 Ceph RBD 块设备</title>
@@ -481,30 +502,6 @@
     
     
       <category term="Ceph" scheme="https://amito.me/tags/Ceph/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>通过网络远程安装 CentOS 7</title>
-    <link href="https://amito.me/2018/Install-CentOS-7-Remotely-through-Internet/"/>
-    <id>https://amito.me/2018/Install-CentOS-7-Remotely-through-Internet/</id>
-    <published>2018-12-07T14:37:17.000Z</published>
-    <updated>2020-04-13T03:20:25.721Z</updated>
-    
-    <content type="html"><![CDATA[<link rel="stylesheet" class="aplayer-secondary-style-marker" href="/assets/css/APlayer.min.css"><script src="/assets/js/APlayer.min.js" class="aplayer-secondary-script-marker"></script><script class="meting-secondary-script-marker" src="/assets/js/Meting.min.js"></script><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>最近工作中需要将几台服务器重装系统, 将 CentOS 6 换成最新的 CentOS 7.5. 于是研究了一下怎么从 grub lagecy 和 grub2 通过网络来升级或安装 CentOS 7.</p><a id="more"></a><hr width="100%" color="#C0C0C0" size="2"><!-- toc --><p>从 grub 通过网络安装很容易, 还可以设置 VNC 远程安装. 从 CentOS 6 安装 CentOS 7, 和对 CentOS 7 重装比较类似.</p><h2 id="从 -CentOS-6- 安装 -CentOS-7">从 CentOS 6 安装 CentOS 7</h2><p>在启动之前, 我们需要下载 <a href="http://mirrors.ustc.edu.cn/centos/7/os/x86_64/isolinux/vmlinuz" target="_blank" rel="noopener">vmlinuz</a> 和 <a href="http://mirrors.ustc.edu.cn/centos/7/os/x86_64/isoinux/initrd.img" target="_blank" rel="noopener">initrd.img</a> 到 <code>/boot/netinstall</code> 文件夹下, 如果哦已经无法进入系统, 可以放在一个可以访问的 U 盘上.</p><p>CentOS 6 的启动方式是 grub lagecy, 配置文件是 <code>/boot/grub/grub.conf</code>, 我们需要在启动项开始或结束加入一个新的启动项. 如果已经无法进入系统, 在 grub 没有毁坏的情况下, 在启动选择界面 按 c 进入手动输入模式, 输入以下启动命令.</p><pre class=" language-language-bash"><code class="language-language-bash">title CentOS 7 Installroot (hd0,2)kernel /netinstall/vmlinuz ro ip=192.168.1.10 netmask=255.255.255.254 gateway=192.168.1.1 dns=1.1.1.1 method=http://mirrors.ustc.edu.cn/centos/7/os/x86_64 lang=en_US keymap=us ksdevice=eth0initrd /netinstall/initrd.img</code></pre><p>其中, <code>ip</code>, <code>netmask</code>, <code>gateway</code>, <code>dns</code> 是网络连接信息, <code>method</code> 是网络安装包位置. 根据需要修改网络信息和安装位置. 根据 <code>/boot</code> 所在位置和所下载文件位置, 修改相应路径. 如果要利用 <strong>vnc</strong> 通过远程拖动进行安装, 需要在 <code>kernel</code> 语句后面加上 <code>vnc vncpassword=MyPassword</code> 就可以了. 另外, 如果默认网卡<strong> 不是</strong> <code>eth0</code>, 比如<code>eno1</code> 的话, 需要在 <code>kernel</code> 命令行加上 <code>ksdevice=eno1</code></p><p>如果一切没有问题, 之后便会进入图形化安装界面. 如果想自动进行安装, 你可以指定 <code>Kickstart</code> 安装文件. 并在 <code>kernel</code> 语句后面加上文件位置如 <code>ks=http://localfile/centos7.ks</code>, 这样就会自动进行安装了, 当然需要实现准备好 <code>ks</code> 文件.</p><h2 id="从 -CentOS-7- 重装 -CentOS-7">从 CentOS 7 重装 CentOS 7</h2><p>重装 CentOS 7 的过程与 从 CentOS 6 安装 CentOS 7 类似. CentOS 7 使用的引导器是 <code>grub2</code>, 启动项参数相应有些改变.</p><pre class=" language-language-bash"><code class="language-language-bash">menuentry "CentOS-7-Install"{set root=(hd0,msdos2)kernel16 /netinstall/vmlinuz ro ip=192.168.1.10::192.168.1.1:255.255.255.254:my_hostname:eth0:none nameserver=1.1.1.1 inst.repo=http://mirrors.ustc.edu.cn/centos/7/os/x86_64/ inst.vnc inst.vncpassword=MyPassword ksdevice=eth0 ks="http://where.my.ks.file.is" inst.lang=en_US inst.keymap=usinitrd16 /netinstall/initrd.img}</code></pre><p>其中 <code>ip</code> 的格式为 <code>ip::gateway:netmask:hostname:interface:none</code>, 或者 <code>ip=dhcp</code>. 如果 硬盘是 <code>GPT</code> 格式的, 则需要将 <code>(hd0,msdos2)</code> 改成 <code>(hd0,gpt2)</code>, 且要加上 <code>inst.gpt</code> 选项. 同样<br>的，需要注意网卡名 <strong>interface</strong> 和 ksdevice 一定要正确。 之后重启进入 CentOS 7 安装：</p><pre class=" language-language-bash"><code class="language-language-bash">grub2-reboot CentOS-7-Install</code></pre><p>这样重启后一般就会进入自动化安装 <code>CentOS 7</code> 的程序啦.</p><h2 id="Kickstart- 配置文件">Kickstart 配置文件</h2><p>一般安装好 <code>CentOS</code> 或 <code>Fedora</code> 后, 会在 <code>/root</code> 下有一个 <code>anaconda-ks.cfg</code>, 这就是一个 <code>Kickstart</code> 配置文件, 可以参考这个修改成适合自己的安装脚本。RHEL/CentOS 有一个图形化的配置工具 <strong>system-config-kickstart</strong> 可以简化 Kickstart 文件的生成配置。</p><p>下面是一个简单的 ks 配置文件。</p><pre class=" language-language-bash"><code class="language-language-bash">#version=DEVEL# System authorization informationauth --enableshadow --passalgo=sha512# Use network installationurl --url="http://mirror.ihep.ac.cn/centos/7/os/x86_64"# Use graphical installgraphical# Run the Setup Agent on first bootfirstboot --enableignoredisk --only-use=sda# Keyboard layouts# old format: keyboard us# new format:keyboard --vckeymap=us --xlayouts='us'# System languagelang en_US.UTF-8# Network informationnetwork  --bootproto=static --device=eno1 --gateway=202.122.33.1 --ip=202.122.33.38 --nameserver=202.122.33.44 --netmask=255.255.255.128 --ipv6=auto --activatenetwork  --bootproto=dhcp --device=eno2 --onboot=off --ipv6=autonetwork  --bootproto=dhcp --device=eno3 --onboot=off --ipv6=autonetwork  --bootproto=dhcp --device=eno4 --onboot=off --ipv6=autonetwork  --hostname=localhost.localdomain# Root passwordrootpw --iscrypted $6$7Xg630Hqe96PUCMu$mUzleXYhsnNBxHl.U1AZTGGVSqJ6U/7n2.psJ8nlXg0.MMFcEjngSAytOZhD8yM52d2s3PF7vpojhiF6s0iT2/# System servicesservices --enabled="chronyd"# System timezonetimezone Asia/Harbin --isUtcuser --groups=wheel --name=eos --password=$6$VWhRMFl9A7LKcekg$0zZOGfO2ezcfbGPRLbNVsrzylddEmlsFw5WTkZSa/0Oh5IGxVXvljRAn8O/sSFxdtHKiqioSYXXZpJ/ipqOaA/ --iscrypted --uid=1000 --gecos="eos" --gid=1000# System bootloader configurationbootloader --append=" crashkernel=auto" --location=mbr --boot-drive=sda# Partition clearing informationclearpart --all --initlabel --drives=sda# Disk partitioning informationpart /data --fstype="ext4" --ondisk=sda --size=123775 --label=datapart swap --fstype="swap" --ondisk=sda --size=8191part / --fstype="ext4" --ondisk=sda --size=51200 --label=rootpart /var --fstype="ext4" --ondisk=sda --size=102400 --label=varpart /boot --fstype="ext4" --ondisk=sda --size=500 --label=boot%packages@^developer-workstation-environment@base@core@debugging@desktop-debugging@development@dial-up@directory-client@file-server@fonts@gnome-apps@gnome-desktop@guest-desktop-agents@hardware-monitoring@input-methods@internet-applications@internet-browser@java-platform@load-balancer@mariadb@multimedia@network-file-system-client@performance@perl-runtime@print-client@python-web@ruby-runtime@system-admin-tools@virtualization-client@virtualization-hypervisor@virtualization-tools@web-server@x11chronykexec-tools%end%addon com_redhat_kdump --enable --reserve-mb='auto'%end%anacondapwpolicy root --minlen=6 --minquality=1 --notstrict --nochanges --notemptypwpolicy user --minlen=6 --minquality=1 --notstrict --nochanges --emptyokpwpolicy luks --minlen=6 --minquality=1 --notstrict --nochanges --notempty%end</code></pre><p>需要特别注意的是，安装位置选择硬盘一定要慎重，一定要确定好所选 <strong> 硬盘 </strong> 和<strong>分区 </strong> 方案后，才能进行安装，否则容易造成数据丢失。</p><hr><h2 id="参考">参考</h2><ol><li><a href="http://www.danpros.com/2016/02/how-to-install-centos-7-remotely-using-vnc" target="_blank" rel="noopener">How to install CentOS 7 remotely using VNC</a></li><li><a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/installation_guide/ap-admin-options" target="_blank" rel="noopener">Redhat Enterprise Linux 6 - Installation Guide - BOOT OPTIONS</a></li></ol><script>        document.querySelectorAll('.github-emoji')          .forEach(el => {            if (!el.dataset.src) { return; }            const img = document.createElement('img');            img.style = 'display:none !important;';            img.src = el.dataset.src;            img.addEventListener('error', () => {              img.remove();              el.style.color = 'inherit';              el.style.backgroundImage = 'none';              el.style.background = 'none';            });            img.addEventListener('load', () => {              img.remove();            });            document.body.appendChild(img);          });      </script>]]></content>
-    
-    <summary type="html">
-    
-      &lt;p&gt;最近工作中需要将几台服务器重装系统, 将 CentOS 6 换成最新的 CentOS 7.5. 于是研究了一下怎么从 grub lagecy 和 grub2 通过网络来升级或安装 CentOS 7.&lt;/p&gt;
-    
-    </summary>
-    
-      <category term="Linux" scheme="https://amito.me/categories/Linux/"/>
-    
-    
-      <category term="Linux" scheme="https://amito.me/tags/Linux/"/>
-    
-      <category term="CentOS" scheme="https://amito.me/tags/CentOS/"/>
     
   </entry>
   
