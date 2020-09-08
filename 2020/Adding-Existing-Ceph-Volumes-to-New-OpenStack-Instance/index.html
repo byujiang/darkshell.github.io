@@ -19,19 +19,19 @@
             <link rel="alternate" type="application/atom+xml" title="RSS" href="/atom.xml">
         
     
-    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":"\n\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2020-09-08T16:04:58+08:00","dateModified":"2020-09-08T16:06:02+08:00","datePublished":"2020-09-08T16:04:58+08:00","description":"","headline":"Adding Existing Ceph Volumes to New OpenStack Instance","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/","thumbnailUrl":"ceph.png"}</script>
-    <meta name="description" content="document.querySelectorAll(&apos;.github-emoji&apos;)           .forEach(el =&amp;gt; {             if (!el.dataset.src) { return; }             const img = document.createElement(&apos;img&apos;);             img.st">
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg"},"articleBody":" 这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.\n\n\n\n 同一个 Ceph Cluster 内转移 \n#### On old openstack controoler node\n$ openstack volume show 5029f6d0-753b-417d-991d-2ea4f61bbe96\n## or\n$ cinder show 5029f6d0-753b-417d-991d-2ea4f61bbe96\n...\n| os-vol-host-attr:host          | controller01.ihep.ac.cn@ceph-default#ceph-default |\n...\n#### On new openstack controller node\n$ cinder manage --name=newdata300 controller01.ihep.ac.cn@ceph-default#ceph-default volume-5029f6d0-753b-417d-991d-2ea4f61bbe96\n\n 不同 Ceph Clusters 间转移 \n…\n 参考 \n\nVolume migration between OpenStacks Clusters\nimport existing cinder volumes from ceph into newly installed openstack\n\n\n        document.querySelectorAll('.github-emoji')\n          .forEach(el => {\n            if (!el.dataset.src) { return; }\n            const img = document.createElement('img');\n            img.style = 'display:none !important;';\n            img.src = el.dataset.src;\n            img.addEventListener('error', () => {\n              img.remove();\n              el.style.color = 'inherit';\n              el.style.backgroundImage = 'none';\n              el.style.background = 'none';\n            });\n            img.addEventListener('load', () => {\n              img.remove();\n            });\n            document.body.appendChild(img);\n          });\n      ","dateCreated":"2020-09-08T16:04:58+08:00","dateModified":"2020-09-08T16:16:04+08:00","datePublished":"2020-09-08T16:04:58+08:00","description":"这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.","headline":"Adding Existing Ceph Volumes to New OpenStack Instance","image":["ceph.png"],"mainEntityOfPage":{"@type":"WebPage","@id":"https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/"},"publisher":{"@type":"Organization","name":"Yujiang Bi","sameAs":["https://github.com/byujiang","https://twitter.com/byujiang","https://facebook.com/byujiang","https://www.linkedin.com/profile/","mailto:byujiang@gmail.com"],"image":"bio.jpg","logo":{"@type":"ImageObject","url":"bio.jpg"}},"url":"https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/","thumbnailUrl":"ceph.png"}</script>
+    <meta name="description" content="这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.">
 <meta name="keywords" content="c++,mac,hexo,linux,python,physics,quantum,machine learning">
 <meta property="og:type" content="blog">
 <meta property="og:title" content="Adding Existing Ceph Volumes to New OpenStack Instance">
 <meta property="og:url" content="https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/index.html">
 <meta property="og:site_name" content="冬日の草原">
-<meta property="og:description" content="document.querySelectorAll(&apos;.github-emoji&apos;)           .forEach(el =&amp;gt; {             if (!el.dataset.src) { return; }             const img = document.createElement(&apos;img&apos;);             img.st">
+<meta property="og:description" content="这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.">
 <meta property="og:locale" content="zh-cn">
-<meta property="og:updated_time" content="2020-09-08T08:06:02.390Z">
+<meta property="og:updated_time" content="2020-09-08T08:16:04.609Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Adding Existing Ceph Volumes to New OpenStack Instance">
-<meta name="twitter:description" content="document.querySelectorAll(&apos;.github-emoji&apos;)           .forEach(el =&amp;gt; {             if (!el.dataset.src) { return; }             const img = document.createElement(&apos;img&apos;);             img.st">
+<meta name="twitter:description" content="这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.">
 <meta name="twitter:creator" content="@byujiang">
     
     
@@ -409,9 +409,28 @@
     
     <div class="post-content markdown">
         <div class="main-content-wrap">
-            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><a id="more"></a>
+            <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p> 这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.</p>
+<a id="more"></a>
 <hr width="100%" color="#C0C0C0" size="2">
-<h1 id="table-of-contents">目录</h1>
+<h1 id="table-of-contents">目录</h1><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#同一个 -Ceph-Cluster- 内转移"><span class="toc-text"> 同一个 Ceph Cluster 内转移 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#不同 -Ceph-Clusters- 间转移"><span class="toc-text"> 不同 Ceph Clusters 间转移 </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#参考"><span class="toc-text"> 参考 </span></a></li></ol>
+<h2 id="同一个 -Ceph-Cluster- 内转移"> 同一个 Ceph Cluster 内转移 </h2>
+<pre class=" language-language-bash"><code class="language-language-bash">#### On old openstack controoler node
+$ openstack volume show 5029f6d0-753b-417d-991d-2ea4f61bbe96
+## or
+$ cinder show 5029f6d0-753b-417d-991d-2ea4f61bbe96
+...
+| os-vol-host-attr:host          | controller01.ihep.ac.cn@ceph-default#ceph-default |
+...
+#### On new openstack controller node
+$ cinder manage --name=newdata300 controller01.ihep.ac.cn@ceph-default#ceph-default volume-5029f6d0-753b-417d-991d-2ea4f61bbe96
+</code></pre>
+<h2 id="不同 -Ceph-Clusters- 间转移"> 不同 Ceph Clusters 间转移 </h2>
+<p>…</p>
+<h2 id="参考"> 参考 </h2>
+<ol>
+<li><a href="https://cloud.garr.it/support/kb/general/cinderVolumeMigration" target="_blank" rel="noopener">Volume migration between OpenStacks Clusters</a></li>
+<li><a href="https://ask.openstack.org/en/question/127208/import-existing-cinder-volumes-from-ceph-into-newly-installed-openstack" target="_blank" rel="noopener">import existing cinder volumes from ceph into newly installed openstack</a></li>
+</ol>
 <script>
         document.querySelectorAll('.github-emoji')
           .forEach(el => {
@@ -837,7 +856,24 @@
             s.setAttribute('data-timestamp', +new Date());
             (d.head || d.body).appendChild(s);
           })();
-        </script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+        </script><!-- hexo-inject:begin --><!-- Begin: Injected MathJax -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({"tex2jax":{"inlineMath":[["$","$"],["\\(","\\)"]],"skipTags":["script","noscript","style","textarea","pre","code"],"processEscapes":true},"TeX":{"equationNumbers":{"autoNumber":"AMS"}}});
+</script>
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i=0; i < all.length; i += 1) {
+      all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+  });
+</script>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<!-- End: Injected MathJax -->
+<!-- hexo-inject:end -->
     
 
 

@@ -2,16 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
+    <loc>https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/</loc>
     
-    <lastmod>2020-09-08T08:06:02.391Z</lastmod>
+    <lastmod>2020-09-08T08:16:04.609Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/</loc>
+    <loc>https://amito.me/2018/Using-Ceph-RBD-as-A-Backend-for-OpenStack/</loc>
     
-    <lastmod>2020-09-08T08:06:02.390Z</lastmod>
+    <lastmod>2020-09-08T08:06:02.391Z</lastmod>
     
   </url>
   
@@ -100,7 +100,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-archives/index.html</loc>
+    <loc>https://amito.me/all-categories/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -121,7 +121,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-categories/index.html</loc>
+    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -247,14 +247,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
+    <loc>https://amito.me/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/</loc>
+    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
@@ -282,7 +282,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Solving-SSH-Too-Many-Authentication-Failures/</loc>
+    <loc>https://amito.me/2018/Solving-Hexo-Not-Generating-Static-Files/</loc>
     
     <lastmod>2020-04-13T03:20:25.737Z</lastmod>
     
@@ -303,7 +303,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Solving-Hexo-Not-Generating-Static-Files/</loc>
+    <loc>https://amito.me/2018/Solving-SSH-Too-Many-Authentication-Failures/</loc>
     
     <lastmod>2020-04-13T03:20:25.737Z</lastmod>
     
@@ -548,7 +548,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Generating-A-Self-Signed-SSL-Certificate-for-Nginx/</loc>
+    <loc>https://amito.me/2018/HTCondor-Introduction-Installation-and-Configuration/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
@@ -583,7 +583,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/HTCondor-Introduction-Installation-and-Configuration/</loc>
+    <loc>https://amito.me/2018/Generating-A-Self-Signed-SSL-Certificate-for-Nginx/</loc>
     
     <lastmod>2020-04-13T03:20:25.720Z</lastmod>
     
@@ -611,14 +611,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/</loc>
+    <loc>https://amito.me/2018/Deploy-And-Manage-A-Redis-Cluster/</loc>
     
     <lastmod>2020-04-13T03:20:25.718Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Deploy-And-Manage-A-Redis-Cluster/</loc>
+    <loc>https://amito.me/2018/Deploy-And-Run-A-QuarkDB-Cluster/</loc>
     
     <lastmod>2020-04-13T03:20:25.718Z</lastmod>
     
@@ -730,14 +730,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/</loc>
+    <loc>https://amito.me/2019/Build-Shared-Libs-Using-Autotools/</loc>
     
     <lastmod>2020-04-13T03:20:25.714Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2019/Build-Shared-Libs-Using-Autotools/</loc>
+    <loc>https://amito.me/2016/Building-Your-Own-Ngrok-Service-on-CentOS-7/</loc>
     
     <lastmod>2020-04-13T03:20:25.714Z</lastmod>
     
@@ -758,7 +758,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Anomaly-Detection-with-K-Means-Clustering/</loc>
+    <loc>https://amito.me/2015/An-Simple-Introduction-to-Grub2/</loc>
     
     <lastmod>2020-04-13T03:20:25.713Z</lastmod>
     
@@ -772,7 +772,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2015/An-Simple-Introduction-to-Grub2/</loc>
+    <loc>https://amito.me/2018/Anomaly-Detection-with-K-Means-Clustering/</loc>
     
     <lastmod>2020-04-13T03:20:25.713Z</lastmod>
     
