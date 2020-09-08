@@ -6,7 +6,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="https://amito.me/"/>
-  <updated>2020-09-08T08:16:04.609Z</updated>
+  <updated>2020-09-08T08:17:58.828Z</updated>
   <id>https://amito.me/</id>
   
   <author>
@@ -21,7 +21,7 @@
     <link href="https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/"/>
     <id>https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/</id>
     <published>2020-09-08T08:04:58.000Z</published>
-    <updated>2020-09-08T08:16:04.609Z</updated>
+    <updated>2020-09-08T08:17:58.828Z</updated>
     
     <content type="html"><![CDATA[<link rel="stylesheet" class="aplayer-secondary-style-marker" href="/assets/css/APlayer.min.css"><script src="/assets/js/APlayer.min.js" class="aplayer-secondary-script-marker"></script><script class="meting-secondary-script-marker" src="/assets/js/Meting.min.js"></script><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p> 这一篇介绍了如何将旧 OpenStack 实例创建的 Ceph Volume 添加到新的 OpenStack 实例中.</p><a id="more"></a><hr width="100%" color="#C0C0C0" size="2"><!-- toc --><h2 id="同一个 -Ceph-Cluster- 内转移"> 同一个 Ceph Cluster 内转移 </h2><pre class=" language-language-bash"><code class="language-language-bash">#### On old openstack controoler node$ openstack volume show 5029f6d0-753b-417d-991d-2ea4f61bbe96## or$ cinder show 5029f6d0-753b-417d-991d-2ea4f61bbe96...| os-vol-host-attr:host          | controller01.ihep.ac.cn@ceph-default#ceph-default |...#### On new openstack controller node$ cinder manage --name=newdata300 controller01.ihep.ac.cn@ceph-default#ceph-default volume-5029f6d0-753b-417d-991d-2ea4f61bbe96</code></pre><h2 id="不同 -Ceph-Clusters- 间转移"> 不同 Ceph Clusters 间转移 </h2><p>…</p><h2 id="参考"> 参考 </h2><ol><li><a href="https://cloud.garr.it/support/kb/general/cinderVolumeMigration" target="_blank" rel="noopener">Volume migration between OpenStacks Clusters</a></li><li><a href="https://ask.openstack.org/en/question/127208/import-existing-cinder-volumes-from-ceph-into-newly-installed-openstack" target="_blank" rel="noopener">import existing cinder volumes from ceph into newly installed openstack</a></li></ol><script>        document.querySelectorAll('.github-emoji')          .forEach(el => {            if (!el.dataset.src) { return; }            const img = document.createElement('img');            img.style = 'display:none !important;';            img.src = el.dataset.src;            img.addEventListener('error', () => {              img.remove();              el.style.color = 'inherit';              el.style.backgroundImage = 'none';              el.style.background = 'none';            });            img.addEventListener('load', () => {              img.remove();            });            document.body.appendChild(img);          });      </script>]]></content>
     
@@ -31,6 +31,14 @@
     
     </summary>
     
+      <category term="Ceph" scheme="https://amito.me/categories/Ceph/"/>
+    
+    
+      <category term="Ceph" scheme="https://amito.me/tags/Ceph/"/>
+    
+      <category term="OpenStack" scheme="https://amito.me/tags/OpenStack/"/>
+    
+      <category term="Cinder" scheme="https://amito.me/tags/Cinder/"/>
     
   </entry>
   
