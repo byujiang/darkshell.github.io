@@ -514,7 +514,6 @@
     resizer.run();
   });
 })(jQuery);
-;$(document).ready(function() { $(".reward_btn").click(function() { $reward_btn = $(this); $qr_code = $reward_btn.next(); $qr_code.slideToggle(500, function() { $reward_btn.text(function() { return $qr_code.is(":visible") ? "Click to Close" : "Buy Me A Coffee?"; }); }); }); });
 ;(function($) {
   'use strict';
 
