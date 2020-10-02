@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://amito.me/books/index.html</loc>
+    
+    <lastmod>2020-10-02T09:25:48.284Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/2020/Adding-Existing-Ceph-Volumes-to-New-OpenStack-Instance/</loc>
     
     <lastmod>2020-09-08T08:17:58.828Z</lastmod>
@@ -72,13 +79,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/books/index.html</loc>
-    
-    <lastmod>2020-04-13T05:58:47.794Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/movies/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.766Z</lastmod>
@@ -93,6 +93,13 @@
   </url>
   
   <url>
+    <loc>https://amito.me//about/index.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://amito.me/all-tags/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
@@ -100,14 +107,7 @@
   </url>
   
   <url>
-    <loc>https://amito.me/all-categories/index.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me//gpg.html</loc>
+    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -115,13 +115,6 @@
   
   <url>
     <loc>https://amito.me//do.html</loc>
-    
-    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://amito.me/all-archives/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
@@ -142,21 +135,28 @@
   </url>
   
   <url>
-    <loc>https://amito.me//about/index.html</loc>
+    <loc>https://amito.me/all-categories/index.html</loc>
     
     <lastmod>2020-04-13T03:20:25.763Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2020/adding-google-adsense-to-your-site/</loc>
+    <loc>https://amito.me//gpg.html</loc>
+    
+    <lastmod>2020-04-13T03:20:25.763Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2019/XCache-Config-Testing-And-Optimizing/</loc>
     
     <lastmod>2020-04-13T03:20:25.758Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2019/XCache-Config-Testing-And-Optimizing/</loc>
+    <loc>https://amito.me/2020/adding-google-adsense-to-your-site/</loc>
     
     <lastmod>2020-04-13T03:20:25.758Z</lastmod>
     
@@ -177,14 +177,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-RBD-in-Ceph/</loc>
+    <loc>https://amito.me/2016/Using-Papers-to-Manage-Your-Docs-on-OSX/</loc>
     
     <lastmod>2020-04-13T03:20:25.754Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2016/Using-Papers-to-Manage-Your-Docs-on-OSX/</loc>
+    <loc>https://amito.me/2018/Using-RBD-in-Ceph/</loc>
     
     <lastmod>2020-04-13T03:20:25.754Z</lastmod>
     
@@ -198,13 +198,6 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-JSON-in-Python/</loc>
-    
-    <lastmod>2020-04-13T03:20:25.742Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://amito.me/2016/Using-Hexo-to-Build-Your-Personal-Static-Blog/</loc>
     
     <lastmod>2020-04-13T03:20:25.742Z</lastmod>
@@ -213,6 +206,13 @@
   
   <url>
     <loc>https://amito.me/2016/Using-Git-to-Deploy-and-Manage-Your-Site/</loc>
+    
+    <lastmod>2020-04-13T03:20:25.742Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://amito.me/2018/Using-JSON-in-Python/</loc>
     
     <lastmod>2020-04-13T03:20:25.742Z</lastmod>
     
@@ -247,14 +247,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/</loc>
+    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Useful-Tools-for-Linux-Operations/</loc>
+    <loc>https://amito.me/2018/Using-CBT-to-Benchmark-Your-Ceph-Cluster/</loc>
     
     <lastmod>2020-04-13T03:20:25.740Z</lastmod>
     
@@ -303,14 +303,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Solving-SSH-Too-Many-Authentication-Failures/</loc>
+    <loc>https://amito.me/2018/Setup-NFS-Service-on-CentOS-7/</loc>
     
     <lastmod>2020-04-13T03:20:25.737Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2018/Setup-NFS-Service-on-CentOS-7/</loc>
+    <loc>https://amito.me/2018/Solving-SSH-Too-Many-Authentication-Failures/</loc>
     
     <lastmod>2020-04-13T03:20:25.737Z</lastmod>
     
@@ -324,14 +324,14 @@
   </url>
   
   <url>
-    <loc>https://amito.me/2018/STDIN-and-STDOUT-Redirect-in-Bash/</loc>
+    <loc>https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/</loc>
     
     <lastmod>2020-04-13T03:20:25.734Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://amito.me/2015/Setup-Chinese-Environment-with-XeTeX/</loc>
+    <loc>https://amito.me/2018/STDIN-and-STDOUT-Redirect-in-Bash/</loc>
     
     <lastmod>2020-04-13T03:20:25.734Z</lastmod>
     
